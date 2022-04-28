@@ -46,6 +46,7 @@ typedef enum
     APP_SPI_FRAM_FM25V01,
     APP_SPI_FRAM_FM25V10,
     APP_SPI_FLASH_W25Q16,
+	APP_SPI_FLASH_GD25Q64,
 	APP_SPI_FLASH_MAX
 } app_flash_device_t;
 

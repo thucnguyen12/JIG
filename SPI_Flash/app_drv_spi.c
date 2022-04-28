@@ -81,5 +81,5 @@ uint8_t app_drv_spi_transmit_byte(void *spi, uint8_t data)
 
 void app_drv_spi_cs(void *spi, bool level)
 {
-    HAL_GPIO_WritePin(FLASH_CS_GPIO_Port, FLASH_CS_Pin, level ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, level ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }

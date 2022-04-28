@@ -192,8 +192,8 @@
 
 /* Section 2: PHY configuration section */
 
-/* LAN8742A_PHY_ADDRESS Address*/
-#define LAN8742A_PHY_ADDRESS           1U
+/* DP83848_PHY_ADDRESS Address*/
+#define DP83848_PHY_ADDRESS           1U
 /* PHY Reset delay these values are based on a 1 ms Systick interrupt*/
 #define PHY_RESET_DELAY                 0x000000FFU
 /* PHY Configuration delay */
@@ -224,12 +224,18 @@
 
 /* Section 4: Extended PHY Registers */
 #define PHY_SR                          ((uint16_t)0x10)    /*!< PHY status register Offset                      */
+#define PHY_MICR                        ((uint16_t)0x11)    /*!< MII Interrupt Control Register                  */
+#define PHY_MISR                        ((uint16_t)0x12)    /*!< MII Interrupt Status and Misc. Control Register */
 
+#define PHY_LINK_STATUS               ((uint16_t)0x0001)  /*!< PHY Link mask                                   */
 #define PHY_SPEED_STATUS                ((uint16_t)0x0002)  /*!< PHY Speed mask                                  */
 #define PHY_DUPLEX_STATUS               ((uint16_t)0x0004)  /*!< PHY Duplex mask                                 */
 
-#define PHY_ISFR                        ((uint16_t)0x001D)    /*!< PHY Interrupt Source Flag register Offset   */
-#define PHY_ISFR_INT4                   ((uint16_t)0x000B)  /*!< PHY Link down inturrupt       */
+#define PHY_MICR_INT_EN                 ((uint16_t)0x0002)  /*!< PHY Enable interrupts                           */
+#define PHY_MICR_INT_OE                 ((uint16_t)0x0001)  /*!< PHY Enable output interrupt events              */
+
+#define PHY_MISR_LINK_INT_EN            ((uint16_t)0x0020)  /*!< Enable Interrupt on change of link status       */
+#define PHY_LINK_INTERRUPT              ((uint16_t)0x2000)  /*!< PHY link status interrupt mask                  */
 
 /* ################## SPI peripheral configuration ########################## */
 

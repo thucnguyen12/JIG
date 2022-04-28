@@ -17,3 +17,5 @@
 *.inf
 *.rst
 *.yaml
+*.list
+Debug

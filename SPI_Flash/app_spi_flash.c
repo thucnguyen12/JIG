@@ -153,7 +153,12 @@ static const app_flash_info_t m_info_table[] =
             2 * 1024* 1024,
             APP_SPI_FLASH,
         },
+		{
+			APP_SPI_FLASH_GD25Q64,
+			8 * 1024 * 1024,
+			APP_SPI_FLASH,
 
+		},
         {APP_SPI_FLASH_MAX, 0, APP_SPI_DEVICE_ERROR},
 };
 
@@ -240,6 +245,9 @@ bool app_spi_flash_initialize(app_flash_drv_t *flash_drv)
         case APP_SPI_FLASH_W25Q16:
             DEBUG_RAW("APP_SPI_FLASH_W25Q16, size %u bytes", flash_drv->info.size);
             break;
+        case APP_SPI_FLASH_GD25Q64:
+        	DEBUG_RAW ("APP_SPI_FLASH_GD25Q64, size %u bytes", flash_drv->info.size);
+        	break;
         default:
             DEBUG_RAW("UNKNOWNN: %u", flash_drv->info.device);
             break;
@@ -645,7 +653,7 @@ bool flash_get_device_id(app_flash_drv_t *flash_drv)
 #else
         cmd = RDID_CMD;
 #endif
-        if (cmd == READ_ID_CMD)
+        if (cmd == READ_ID_CMD)// read iden id
         {
             uint8_t buffer_tx[6] = {READ_ID_CMD, 0x00, 0x00, 0x00, 0xFF, 0x00};
             uint8_t buffer_rx[6];
@@ -672,7 +680,7 @@ bool flash_get_device_id(app_flash_drv_t *flash_drv)
             DEBUG_INFO("device id: 0x0x%02, manufacture id: 0x%02X\r\n", id.name.device_id[0],
                        id.name.manufacture_id[1]);
         }
-        else
+        else//read manufacture id
         {
             uint8_t buffer_size = 1 + sizeof(app_spi_flash_device_id_t);
             uint8_t buffer_tx[buffer_size];
@@ -689,7 +697,8 @@ bool flash_get_device_id(app_flash_drv_t *flash_drv)
                        id.name.manufacture_id[1]);
         }
 
-        if (cmd == READ_ID_CMD)     // read fram
+// ********>>>>> compare iden id
+        if (cmd == READ_ID_CMD)     // read manufacture
         {
             if (id.name.manufacture_id[1] == 0x01)
             {
@@ -789,6 +798,11 @@ bool flash_get_device_id(app_flash_drv_t *flash_drv)
                         continue;
                     }
                     val = true;
+                }
+                else if (id.name.device_id[0] == 0x16)
+                {
+                	flash_drv->info.device = APP_SPI_FLASH_GD25Q64;
+					DEBUG_INFO("APP_SPI_FLASH_GD25Q64\r\n");
                 }
             }
             else if (id.name.manufacture_id[1] == 0x89) /* APP_SPI_FLASH_AT25SF128 */
@@ -966,6 +980,17 @@ bool flash_get_device_id(app_flash_drv_t *flash_drv)
                     val = true;
                 }
             }
+            else if (id.name.manufacture_id[0] == 0xC8) /* APP_SPI_FLASH_GD25Q64 */
+			{
+            	DEBUG_INFO ("GIGA DEVICE \r\n");
+            	if (id.name.device_id[0] == 0x40 && id.name.device_id[1] == 0x17)
+				{
+					DEBUG_INFO("GD25Q64\r\n");
+					flash_drv->info.device = APP_SPI_FLASH_GD25Q64;
+					val = true;
+				}
+
+			}
         }
 
         if (val)
