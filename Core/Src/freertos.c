@@ -271,13 +271,15 @@ void StartDefaultTask(void const * argument)
   /*            RECONNECT USB         */
   //************************* INIT FUNCTIONS **************************//
   MX_USB_DEVICE_Init();
-  DEBUG_INFO("usb_init\r\n");
+//  DEBUG_INFO("usb_init\r\n");
+
+//  DEBUG_INFO("tusb_init\r\n");
 
   m_button_event_group = xEventGroupCreate(); //>>>>>>> CREATE BUTTON EVENT VAR
   //init lwip
-  tcpip_init( NULL, NULL );
-  Netif_Config (false);
-  dns_initialize();
+//  tcpip_init( NULL, NULL );
+//  Netif_Config (false);
+//  dns_initialize();
 
 //*************************** INIT BUTTON APP**********************//
   app_btn_config_t btn_conf;
@@ -327,7 +329,6 @@ void StartDefaultTask(void const * argument)
   }
 /************************************************************/
   tusb_init ();
-  DEBUG_INFO("tusb_init\r\n");
   // Create CDC task
   (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
   // Create flashtask
@@ -339,7 +340,7 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-
+		tud_task();
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
@@ -365,7 +366,7 @@ void cdc_task(void* params)
 	{
 //	    // connected() check for DTR bit
 //	    // Most but not all terminal client set this when making connection
-		tud_task();
+
 		if (tud_cdc_connected())
 		{
 			if (m_cdc_debug_register == false)

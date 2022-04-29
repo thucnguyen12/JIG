@@ -983,13 +983,12 @@ bool flash_get_device_id(app_flash_drv_t *flash_drv)
             else if (id.name.manufacture_id[0] == 0xC8) /* APP_SPI_FLASH_GD25Q64 */
 			{
             	DEBUG_INFO ("GIGA DEVICE \r\n");
-            	if (id.name.device_id[0] == 0x40 && id.name.device_id[1] == 0x17)
+            	if (id.name.device_id[0] == (uint8_t)0x17 && id.name.device_id[1] == (uint8_t)0xC8)
 				{
 					DEBUG_INFO("GD25Q64\r\n");
 					flash_drv->info.device = APP_SPI_FLASH_GD25Q64;
 					val = true;
 				}
-
 			}
         }
 
