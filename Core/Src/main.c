@@ -30,7 +30,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "app_debug.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,7 +57,9 @@
 void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
-
+uint32_t sys_get_ms(void);
+bool lock_debug(bool lock, uint32_t timeout_ms);
+static SemaphoreHandle_t m_lock_debug;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -102,7 +104,9 @@ int main(void)
   MX_ADC1_Init();
   MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
-
+  m_lock_debug = xSemaphoreCreateMutex();
+  xSemaphoreGive(m_lock_debug);
+  app_debug_init(sys_get_ms, lock_debug);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
@@ -164,7 +168,18 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+uint32_t sys_get_ms(void)
+{
+    return HAL_GetTick();
+}
 
+bool lock_debug(bool lock, uint32_t timeout_ms)
+{
+	if (lock)
+		return xSemaphoreTake(m_lock_debug, timeout_ms);
+	xSemaphoreGive(m_lock_debug);
+	return true;
+}
 /* USER CODE END 4 */
 
 /**

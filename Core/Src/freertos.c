@@ -109,11 +109,41 @@
 
 /*********************      flash task var             ***********************/
 	static TaskHandle_t m_task_connect_handle = NULL;
+
+	static example_binaries_t m_binary;
+	static char m_file_address[128];
+	volatile uint32_t led_busy_toggle = 0;
+
+	static const char *info_file = "info.txt";
+	static const char *bootloader_file = "bootloader.bin";
+	static const char *application_file = "app.bin";
+	static const char *partition_file = "partition-table.bin";
+
+	static const char *chip_des[] = {"ESP8266", "ESP32", "ESP32S2", "ESP32C3", "ESP32S3", "ESP32C2", "ESP32H2", "UNKNOWN"};
 /*******************************************************************/
 
 /*********************       NET VAR    **********************************/
 	struct netif g_netif;
 /*****************************************************************/
+
+//************************** MD5 CRC CONFIG VAR ************************//
+	static uint8_t m_buffer[4096];
+	static MD5Context_t md5_context;
+	static esp_loader_config_t m_loader_cfg =
+	{
+	    .baud_rate = 115200,
+	    .reset_trigger_pin = ESP_EN_Pin,
+	    .gpio0_trigger_pin = ESP_IO0_Pin,
+	    .buffer = m_buffer,
+	    .buffer_size = 4096,
+	    .sync_timeout = 100,
+	    .trials = 10,
+	    .md5_context = &md5_context
+	};
+//*********************************************************************//
+
+//***************************
+
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 
@@ -239,6 +269,7 @@ void StartDefaultTask(void const * argument)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
   /*            RECONNECT USB         */
+  //************************* INIT FUNCTIONS **************************//
   MX_USB_DEVICE_Init();
   DEBUG_INFO("usb_init\r\n");
 
@@ -246,7 +277,7 @@ void StartDefaultTask(void const * argument)
   //init lwip
   tcpip_init( NULL, NULL );
   Netif_Config (false);
-//  dns_initialize();
+  dns_initialize();
 
 //*************************** INIT BUTTON APP**********************//
   app_btn_config_t btn_conf;
@@ -308,6 +339,7 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
@@ -327,7 +359,82 @@ uint32_t cdc_tx(const void *buffer, uint32_t size)
 
 void cdc_task(void* params)
 {
+	DEBUG_INFO("ENTER CDC TASK\r\n");
+	lwrb_init(&m_ringbuffer_usb_cdc_tx, m_lwrb_tx_raw_buffer, USB_CDC_TX_RING_BUFFER_SIZE);
+	for (;;)
+	{
+//	    // connected() check for DTR bit
+//	    // Most but not all terminal client set this when making connection
+		tud_task();
+		if (tud_cdc_connected())
+		{
+			if (m_cdc_debug_register == false)
+			{
+				m_cdc_debug_register = true;
+				app_debug_register_callback_print(cdc_tx);
+			}
+			// There are data available
+			if (tud_cdc_available())
+			{
+				uint8_t buf[64];
 
+				// read and echo back
+				uint32_t count = tud_cdc_read(buf, sizeof(buf));
+				(void) count;
+
+				if (count && strstr((char*)buf, "RESET"))
+				{
+					tud_cdc_write_flush();
+					tud_cdc_write_str("System reset\r\n");
+					tud_cdc_write_flush();
+					vTaskDelay(1000);
+					NVIC_SystemReset();
+				}
+//				// Echo back
+//				// Note: Skip echo by commenting out write() and write_flush()
+//				// for throughput test e.g
+//				//    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
+//				tud_cdc_write(buf, count);
+//				tud_cdc_write_flush();
+			}
+		}
+		else
+		{
+			if (m_cdc_debug_register)
+			{
+				m_cdc_debug_register = false;
+				app_debug_unregister_callback_print(cdc_tx);
+				// Flush all cdc tx buffer
+				char tmp[1];
+				while (lwrb_read(&m_ringbuffer_usb_cdc_tx, tmp, 1))
+				{
+
+				}
+			}
+		}
+
+		char buffer[ (TUD_OPT_HIGH_SPEED ? 512 : 64)];
+		uint32_t size;
+		while (1)
+		{
+			uint32_t avai = tud_cdc_write_available();
+			if (avai >= sizeof(buffer))
+			{
+				avai = sizeof(buffer);
+			}
+			size = lwrb_read(&m_ringbuffer_usb_cdc_tx, buffer, avai);
+			if (size)
+			{
+				tud_cdc_write(buffer, size);
+				tud_cdc_write_flush();
+			}
+			else
+			{
+				break;
+			}
+		}
+		vTaskDelay(pdMS_TO_TICKS(1));
+	}
 }
 /**********************************************************************/
 
@@ -335,7 +442,182 @@ void cdc_task(void* params)
 
 void flash_task(void *argument)
 {
+	DEBUG_INFO("ENTER flash TASK\r\n");
+	int32_t file_size = 0;
 
+	if (m_disk_is_mounted)
+	{
+		file_size = fatfs_read_file(info_file, (uint8_t*)m_file_address, sizeof(m_file_address) - 1);
+		if (file_size > 0)
+		{
+			/*
+			{
+				"boot": 123456,
+				"app": 1238123,
+				"partition": 1238
+			}
+			*/
+			char *ptr = strstr(m_file_address, "\"boot\":");
+			if (ptr)
+			{
+				ptr += strlen("\"boot\":");
+				m_binary.boot.addr = utilities_get_number_from_string(0, ptr);
+			}
+
+			ptr = strstr(m_file_address, "\"app\":");
+			if (ptr)
+			{
+				ptr += strlen("\"app\":");
+				m_binary.app.addr = utilities_get_number_from_string(0, ptr);
+			}
+
+			ptr = strstr(m_file_address, "\"partition\":");
+			if (ptr)
+			{
+				ptr += strlen("\"partition\":");
+				m_binary.part.addr = utilities_get_number_from_string(0, ptr);
+			}
+		}
+
+		file_size = fatfs_get_file_size(bootloader_file);
+		if (file_size > -1)
+		{
+			m_binary.boot.size = file_size;
+			m_binary.boot.file_name = bootloader_file;
+		}
+
+		file_size = fatfs_get_file_size(application_file);
+		if (file_size > -1)
+		{
+			m_binary.app.size = file_size;
+			m_binary.app.file_name = application_file;
+		}
+
+		file_size = fatfs_get_file_size(partition_file);
+		if (file_size > -1)
+		{
+			m_binary.part.size = file_size;
+			m_binary.part.file_name = partition_file;
+		}
+
+		DEBUG_INFO("Bootloader offset 0x%08X, app 0x%08X, partition table 0x%08X\r\n", m_binary.boot.addr, m_binary.app.addr,  m_binary.part.addr);
+		DEBUG_INFO("Bootloader %u bytes, app %u bytes, partition table %u bytes\r\n", m_binary.boot.size, m_binary.app.size,  m_binary.part.size);
+	}
+	m_loader_cfg.gpio0_trigger_port = (uint32_t)ESP_IO0_GPIO_Port;
+	m_loader_cfg.reset_trigger_port = (uint32_t)ESP_EN_GPIO_Port;
+	m_loader_cfg.uart_addr = (uint32_t)USART3;
+	esp_loader_error_t err;
+
+	// Clear led busy & success, set led error
+	HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LED_SUCCESS_GPIO_Port, LED_SUCCESS_Pin, GPIO_PIN_SET);
+	for (;;)
+	{
+		DEBUG_INFO("ENTER flash LOOP\r\n");
+		if (led_busy_toggle > 10)
+		{
+			led_busy_toggle = 1;
+		}
+//		xEventGroupWaitBits(m_button_event_group,
+//								BIT_EVENT_GROUP_KEY_0_PRESSED,
+//								pdTRUE,
+//								pdFALSE,
+//								portMAX_DELAY);
+		//   THRERE NO KEY NOW
+//		DEBUG_INFO("KEY IS PRESSED\r\n");
+		HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LED_SUCCESS_GPIO_Port, LED_SUCCESS_Pin, GPIO_PIN_SET);
+		uint32_t now = xTaskGetTickCount();
+		uint32_t retry = 4;
+		while (m_binary.part.size > 0
+				&& m_binary.app.size > 0
+				&& m_binary.part.size > 0
+				)
+		{
+			if (retry == 0)
+			{
+				break;
+			}
+			retry--;
+			loader_port_change_baudrate(&m_loader_cfg, 115200);
+			DEBUG_INFO("Connecting to target remain %u times\r\n", retry);
+			led_busy_toggle = 1000000;
+			err = esp_loader_connect(&m_loader_cfg);
+			if (err != ESP_LOADER_SUCCESS)
+			{
+				DEBUG_ERROR("Connect to target failed %d\r\n", err);
+				continue;
+			}
+			else
+			{
+				DEBUG_INFO("Connected to target %s\r\n", chip_des[m_loader_cfg.target]);
+			}
+			DEBUG_INFO("Change baudrate\r\n");
+			err = esp_loader_change_baudrate(&m_loader_cfg, 115200);
+			if (err == ESP_LOADER_ERROR_UNSUPPORTED_FUNC)
+			{
+				DEBUG_ERROR("ESP8266 does not support change baudrate command\r\n");
+			}
+			else if (err != ESP_LOADER_SUCCESS)
+			{
+				DEBUG_ERROR("Unable to change baud rate on target\r\n");
+			}
+			else
+			{
+				err = loader_port_change_baudrate(&m_loader_cfg, 115200);
+				if (err != ESP_LOADER_SUCCESS)
+				{
+					DEBUG_ERROR("Unable to change baud rate\r\n");
+				}
+				else
+				{
+					DEBUG_INFO("Port[%u] : Baudrate changed\r\n");
+				}
+			}
+
+			DEBUG_INFO("Flash bootloader\r\n");
+			if (flash_binary_stm32(&m_loader_cfg, &m_binary.boot) != ESP_LOADER_SUCCESS)
+			{
+				DEBUG_INFO("FLASH BOOTLOADER FAIL \r\n");
+				xEventGroupClearBits(m_button_event_group,
+									BIT_EVENT_GROUP_KEY_0_PRESSED);
+				break;
+			}
+
+			DEBUG_INFO("Flash app\r\n");
+			if (flash_binary_stm32(&m_loader_cfg, &m_binary.app) != ESP_LOADER_SUCCESS)
+			{
+				xEventGroupClearBits(m_button_event_group,
+									BIT_EVENT_GROUP_KEY_0_PRESSED);
+				break;
+			}
+
+			DEBUG_INFO("Flash parition table\r\n");
+			if (flash_binary_stm32(&m_loader_cfg, &m_binary.part) != ESP_LOADER_SUCCESS)
+			{
+				xEventGroupClearBits(m_button_event_group,
+									BIT_EVENT_GROUP_KEY_0_PRESSED);
+				break;
+			}
+			retry = 0;
+			xEventGroupClearBits(m_button_event_group,
+								BIT_EVENT_GROUP_KEY_0_PRESSED);
+			DEBUG_INFO("Total flash write time %us\r\n", (xTaskGetTickCount() - now)/1000);
+			HAL_GPIO_WritePin(GPIOF, LED_SUCCESS_Pin, GPIO_PIN_RESET);
+			if (led_busy_toggle > 10)
+			{
+				led_busy_toggle = 1;
+			}
+
+			loader_port_change_baudrate(&m_loader_cfg, 115200);
+			// loader_port_reset_target(&m_loader_cfg);
+			// Led success on, led busy off
+			HAL_GPIO_WritePin(LED_SUCCESS_GPIO_Port, LED_SUCCESS_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
+			break;
+		}
+		vTaskDelay(1000);
+	}
 }
 
 //*******************************************************************************************//
@@ -444,6 +726,17 @@ static void on_btn_hold_so_long(int index, int event, void * pData)
 {
     DEBUG_INFO("Button hold so long\r\n");
 }
-/************************************************************/
+/*******************************************************************/
+
+//**************************  DSN APP ******************************/
+static void dns_initialize(void)
+{
+    ip_addr_t dns_server_0 = IPADDR4_INIT_BYTES(8, 8, 8, 8);
+    ip_addr_t dns_server_1 = IPADDR4_INIT_BYTES(1, 1, 1, 1);
+    dns_setserver(0, &dns_server_0);
+    dns_setserver(1, &dns_server_1);
+    dns_init();
+}
+//******************************************************************//
 /* USER CODE END Application */
 

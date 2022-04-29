@@ -126,6 +126,7 @@
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_ethernet"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_http"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_msc_cdc"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="example_common"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="lwrb"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="mqtt"/>
 						<entry excluding="esp32_port.h|esp32_port.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="port"/>
