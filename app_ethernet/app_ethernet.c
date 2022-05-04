@@ -28,6 +28,14 @@
 #endif
 #include "app_debug.h"
 #include "stdbool.h"
+#include "lwip/init.h"
+#include "lwip/netif.h"
+#include "lwip/timeouts.h"
+#include "netif/etharp.h"
+#include "lwip.h"
+#include "stdio.h"
+#include "app_http.h"
+#include "lwip/dns.h"
 
 extern void Netif_Config (bool restart);
 extern ETH_HandleTypeDef heth;
@@ -92,6 +100,15 @@ void app_ethernet_notification(struct netif *netif)
   }
 }
 
+static void dns_initialize(void)
+{
+    ip_addr_t dns_server_0 = IPADDR4_INIT_BYTES(8, 8, 8, 8);
+    ip_addr_t dns_server_1 = IPADDR4_INIT_BYTES(1, 1, 1, 1);
+    dns_setserver(0, &dns_server_0);
+    dns_setserver(1, &dns_server_1);
+    dns_init();
+}
+
 #if LWIP_DHCP
 /**
   * @brief  DHCP Process
@@ -101,6 +118,12 @@ void app_ethernet_notification(struct netif *netif)
 uint8_t iptxt[32];
 void DHCP_Thread(void const * argument)
 {
+//	MX_LWIP_Init();
+	//	  init lwip
+	tcpip_init( NULL, NULL );
+	Netif_Config (false);
+	dns_initialize();
+
   struct netif *netif = (struct netif *) argument;
   ip_addr_t ipaddr;
   ip_addr_t netmask;
@@ -150,8 +173,8 @@ void DHCP_Thread(void const * argument)
             netif_set_addr(netif, ip_2_ip4(&ipaddr), ip_2_ip4(&netmask), ip_2_ip4(&gw));
 
             sprintf((char *)iptxt, "%s", ip4addr_ntoa(netif_ip4_addr(netif)));
-            DEBUG_ERROR ("DHCP Timeout !! \n");
-            DEBUG_INFO ("Static IP address: %s\n", iptxt);
+            DEBUG_ERROR ("DHCP Timeout !! \r\n");
+            DEBUG_INFO ("Static IP address: %s\r\n", iptxt);
             m_last_link_up_status = true;
             m_ip_assigned = true;
 
@@ -182,25 +205,29 @@ void DHCP_Thread(void const * argument)
     break;
     default: break;
     }
-//    if ((err = HAL_ETH_ReadPHYRegister(&heth, DP83848_PHY_ADDRESS, PHY_BSR, &phyreg)) != HAL_OK)
-//    {
-//        DEBUG_INFO("HAL_ETH_ReadPHYRegister error %d\n", err);
-//    }
-//    else
-//    {
-//        bool phy_link_status = phyreg & PHY_LINKED_STATUS ? 1 : 0;
-//        if (phy_link_status == false && m_last_link_up_status != phy_link_status)
-//        {
-//            DEBUG_INFO("Ethernet disconnected\n", err);
-//            m_last_link_up_status = false;
-//        }
-//        else if (phy_link_status  && (m_last_link_up_status != phy_link_status))
-//        {
-//            DEBUG_INFO("Ethernet connected\n", err);
-//            m_last_link_up_status = true;
-//            DHCP_state = DHCP_START;
-//        }
-//    }
+    if ((err = HAL_ETH_ReadPHYRegister(&heth, PHY_BSR, &phyreg)) != HAL_OK)
+    {
+        DEBUG_INFO("HAL_ETH_ReadPHYRegister error %d\n", err);
+    }
+    else
+    {
+        bool phy_link_status = phyreg & PHY_LINKED_STATUS ? 1 : 0;
+        if (phy_link_status == false && m_last_link_up_status != phy_link_status)
+        {
+            DEBUG_INFO("Ethernet disconnected\n", err);
+            m_last_link_up_status = false;
+        }
+        else if (phy_link_status  && (m_last_link_up_status != phy_link_status))
+        {
+            DEBUG_INFO("Ethernet connected\n", err);
+            m_last_link_up_status = true;
+            DHCP_state = DHCP_START;
+        }
+        else
+        {
+        	DEBUG_INFO("PHY 0x%04X\r\n", phyreg);
+        }
+    }
     // doi theo PHY
     /* wait 500 ms */
     osDelay(500);

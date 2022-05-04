@@ -168,7 +168,7 @@ static void on_btn_hold_so_long(int index, int event, void * pData);
 /***************  ETHERNET PFP      ****************************/
 void Netif_Config (bool restart);
 void net_task(void *argument);
-static void dns_initialize(void);
+
 /**************************************************************/
 
 /*****************        TASK PFP                *************/
@@ -254,7 +254,7 @@ void StartDefaultTask(void const * argument)
 {
   /* init code for LWIP */
 	app_debug_register_callback_print(rtt_tx);
-//  MX_LWIP_Init();
+//
 
   /* init code for USB_DEVICE */
 //  MX_USB_DEVICE_Init();
@@ -289,10 +289,7 @@ void StartDefaultTask(void const * argument)
 //  DEBUG_INFO("tusb_init\r\n");
 
   m_button_event_group = xEventGroupCreate(); //>>>>>>> CREATE BUTTON EVENT VAR
-  //init lwip
-//  tcpip_init( NULL, NULL );
-//  Netif_Config (false);
-//  dns_initialize();
+
 
 //*************************** INIT BUTTON APP**********************//
   app_btn_config_t btn_conf;
@@ -335,16 +332,16 @@ void StartDefaultTask(void const * argument)
   	  TCHAR label[32];
   	  f_getlabel(USERPath, label, 0);
   	  DEBUG_INFO("Label %s\r\n", label);
-  if (strcmp(label, "BSAFE JIG"))
+  if (strncmp(label, "BSAFE JIG", strlen("BSAFE JIG")))
   {
 	DEBUG_INFO("Set label\r\n");
 	f_setlabel("BSAFE JIG");
   }
 /************************************************************/
   tusb_init ();
-//  // Create CDC task
-//  (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
-//  // Create flashtask
+  // Create CDC task
+  (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
+  // Create flashtask
 //  if (m_task_connect_handle == NULL)
 //  {
 //	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
@@ -353,11 +350,11 @@ void StartDefaultTask(void const * argument)
 //  {
 //  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
 //  }
-//#if LWIP_DHCP
-//	  /* Start DHCPClient */
-//	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
-//	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
-//#endif
+#if LWIP_DHCP
+	  /* Start DHCPClient */
+	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
+	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
+#endif
   /* Infinite loop */
   for(;;)
   {
@@ -805,14 +802,7 @@ static void on_btn_hold_so_long(int index, int event, void * pData)
 /*******************************************************************/
 
 //**************************  DSN APP ******************************/
-static void dns_initialize(void)
-{
-    ip_addr_t dns_server_0 = IPADDR4_INIT_BYTES(8, 8, 8, 8);
-    ip_addr_t dns_server_1 = IPADDR4_INIT_BYTES(1, 1, 1, 1);
-    dns_setserver(0, &dns_server_0);
-    dns_setserver(1, &dns_server_1);
-    dns_init();
-}
+
 //******************************************************************//
 /* USER CODE END Application */
 

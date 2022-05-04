@@ -652,9 +652,7 @@ void ethernetif_set_link(void const *argument)
       /* network cable is dis-connected */
       netif_set_link_down(link_arg->netif);
     }
-
-    /* Suspend thread for 200 ms */
-    osDelay(200);
+    break;
   }
 }
 
