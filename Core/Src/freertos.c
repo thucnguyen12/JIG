@@ -352,7 +352,7 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	HAL_GPIO_TogglePin (LED_SUCCESS_GPIO_Port, LED_SUCCESS_Pin);
+//	HAL_GPIO_TogglePin (LED_DONE_GPIO_Port, LED_DONE_Pin);
 
 	tud_task();
 
@@ -526,7 +526,7 @@ void flash_task(void *argument)
 
 	// Clear led busy & success, set led error
 	HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(LED_SUCCESS_GPIO_Port, LED_SUCCESS_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LED_DONE_GPIO_Port, LED_DONE_Pin, GPIO_PIN_SET);
 	for (;;)
 	{
 		DEBUG_INFO("ENTER flash LOOP\r\n");
@@ -542,7 +542,7 @@ void flash_task(void *argument)
 		//   THRERE NO KEY NOW
 //		DEBUG_INFO("KEY IS PRESSED\r\n");
 		HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(LED_SUCCESS_GPIO_Port, LED_SUCCESS_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_DONE_GPIO_Port, LED_DONE_Pin, GPIO_PIN_SET);
 		uint32_t now = xTaskGetTickCount();
 		uint32_t retry = 4;
 		while (m_binary.part.size > 0
@@ -619,7 +619,7 @@ void flash_task(void *argument)
 			xEventGroupClearBits(m_button_event_group,
 								BIT_EVENT_GROUP_KEY_0_PRESSED);
 			DEBUG_INFO("Total flash write time %us\r\n", (xTaskGetTickCount() - now)/1000);
-			HAL_GPIO_WritePin(GPIOF, LED_SUCCESS_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOF, LED_DONE_Pin, GPIO_PIN_RESET);
 			if (led_busy_toggle > 10)
 			{
 				led_busy_toggle = 1;
@@ -628,7 +628,7 @@ void flash_task(void *argument)
 			loader_port_change_baudrate(&m_loader_cfg, 115200);
 			// loader_port_reset_target(&m_loader_cfg);
 			// Led success on, led busy off
-			HAL_GPIO_WritePin(LED_SUCCESS_GPIO_Port, LED_SUCCESS_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LED_DONE_GPIO_Port, LED_DONE_Pin, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
 			break;
 		}

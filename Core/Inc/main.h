@@ -70,16 +70,10 @@ extern bool lock_debug(bool lock, uint32_t timeout_ms);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define MODE1_Pin GPIO_PIN_13
-#define MODE1_GPIO_Port GPIOC
-#define MODE2_Pin GPIO_PIN_14
-#define MODE2_GPIO_Port GPIOC
-#define LED_SUCCESS_Pin GPIO_PIN_7
-#define LED_SUCCESS_GPIO_Port GPIOF
-#define LED_BUSY_Pin GPIO_PIN_8
-#define LED_BUSY_GPIO_Port GPIOF
-#define LED_ERROR_Pin GPIO_PIN_9
-#define LED_ERROR_GPIO_Port GPIOF
+#define ESP_EN_Pin GPIO_PIN_13
+#define ESP_EN_GPIO_Port GPIOC
+#define ESP_IO0_Pin GPIO_PIN_14
+#define ESP_IO0_GPIO_Port GPIOC
 #define ADC_3V3_Pin GPIO_PIN_2
 #define ADC_3V3_GPIO_Port GPIOC
 #define ADC_1V8_Pin GPIO_PIN_3
@@ -136,10 +130,16 @@ extern bool lock_debug(bool lock, uint32_t timeout_ms);
 #define ESP_TX_GPIO_Port GPIOB
 #define SPI2_CS_Pin GPIO_PIN_12
 #define SPI2_CS_GPIO_Port GPIOB
-#define ESP_EN_Pin GPIO_PIN_8
-#define ESP_EN_GPIO_Port GPIOD
-#define ESP_IO0_Pin GPIO_PIN_9
-#define ESP_IO0_GPIO_Port GPIOD
+#define LED_DONE_Pin GPIO_PIN_8
+#define LED_DONE_GPIO_Port GPIOD
+#define LED_ERROR_Pin GPIO_PIN_9
+#define LED_ERROR_GPIO_Port GPIOD
+#define LED_BUSY_Pin GPIO_PIN_10
+#define LED_BUSY_GPIO_Port GPIOD
+#define MODE2_Pin GPIO_PIN_6
+#define MODE2_GPIO_Port GPIOC
+#define MODE1_Pin GPIO_PIN_7
+#define MODE1_GPIO_Port GPIOC
 #define GSM_PWRKEY_Pin GPIO_PIN_8
 #define GSM_PWRKEY_GPIO_Port GPIOC
 #define GSM_RESET_Pin GPIO_PIN_9
@@ -150,16 +150,18 @@ extern bool lock_debug(bool lock, uint32_t timeout_ms);
 #define GSM_RX_GPIO_Port GPIOC
 #define GSM_TX_Pin GPIO_PIN_11
 #define GSM_TX_GPIO_Port GPIOC
-#define RS232_TX_Pin GPIO_PIN_12
-#define RS232_TX_GPIO_Port GPIOC
-#define BUZZ_Pin GPIO_PIN_0
-#define BUZZ_GPIO_Port GPIOD
-#define RS232_RX_Pin GPIO_PIN_2
-#define RS232_RX_GPIO_Port GPIOD
-#define RS485_TX_Pin GPIO_PIN_5
-#define RS485_TX_GPIO_Port GPIOD
-#define RS485_RX_Pin GPIO_PIN_6
+#define RS485_TX_Pin GPIO_PIN_12
+#define RS485_TX_GPIO_Port GPIOC
+#define BT_IN_Pin GPIO_PIN_0
+#define BT_IN_GPIO_Port GPIOD
+#define RS485_RX_Pin GPIO_PIN_2
 #define RS485_RX_GPIO_Port GPIOD
+#define BUZZ_Pin GPIO_PIN_3
+#define BUZZ_GPIO_Port GPIOD
+#define ESP_RXD5_Pin GPIO_PIN_5
+#define ESP_RXD5_GPIO_Port GPIOD
+#define ESP_TXD6_Pin GPIO_PIN_6
+#define ESP_TXD6_GPIO_Port GPIOD
 #define W_ENET_RST_Pin GPIO_PIN_12
 #define W_ENET_RST_GPIO_Port GPIOG
 /* USER CODE BEGIN Private defines */

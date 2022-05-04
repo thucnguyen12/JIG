@@ -38,7 +38,6 @@ extern "C" {
 
 void MX_UART5_Init(void);
 void MX_USART2_UART_Init(void);
-void MX_USART3_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 uint32_t usart_logger_put(const void *buffer, uint32_t size);

@@ -103,7 +103,6 @@ int main(void)
   MX_SPI3_Init();
   MX_UART5_Init();
   MX_USART2_UART_Init();
-  MX_USART3_UART_Init();
   MX_ADC1_Init();
   MX_FATFS_Init();
   /* USER CODE BEGIN 2 */

@@ -116,29 +116,29 @@
 					</folderInfo>
 					<fileInfo id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.691635556.6681209" name="esp32_port.h" rcbsApplicability="disable" resourcePath="port/esp32_port.h" toolsToInvoke=""/>
 					<sourceEntries>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="mqtt"/>
-						<entry excluding="Third_Party/LwIP/src/apps/http/fsdata.c|Third_Party/LwIP/src/apps/http/makefsdata|Third_Party/LwIP/src/apps/httpd|Third_Party/LwIP/src/apps/httpd/fsdata.c|Third_Party/LwIP/src/apps/httpd/makefsdata" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="tinyusb-master/src/portable/synopsys/dwc2"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_http"/>
-						<entry excluding="common|device|portable/synopsys/dwc2" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="tinyusb-master/src"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="tinyusb-master/src/device"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_btn"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="SPI_Flash"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="serial/src"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="SEGGER_RTT_V762b/RTT"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_ethernet"/>
-						<entry excluding="esp32_port.h|esp32_port.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="port"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="tinyusb-master/src/common"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="lwrb"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_debug"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="example_common"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
+						<entry excluding="CMSIS/Device/ST/STM32F2xx/Source/Templates/system_stm32f2xx.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="FATFS"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_msc_cdc"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="LWIP"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="utilities"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
+						<entry excluding="Third_Party/LwIP/src/apps/http/fsdata.c|Third_Party/LwIP/src/apps/http/makefsdata|Third_Party/LwIP/src/apps/httpd|Third_Party/LwIP/src/apps/httpd/fsdata.c|Third_Party/LwIP/src/apps/httpd/makefsdata" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="SEGGER_RTT_V762b/RTT"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="SPI_Flash"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="USB_DEVICE"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_btn"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_debug"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_ethernet"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_http"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="app_msc_cdc"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="example_common"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="lwrb"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="mqtt"/>
+						<entry excluding="esp32_port.h|esp32_port.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="port"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="serial/src"/>
+						<entry excluding="common|device|portable/synopsys/dwc2" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="tinyusb-master/src"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="tinyusb-master/src/common"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="tinyusb-master/src/device"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="tinyusb-master/src/portable/synopsys/dwc2"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="utilities"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -262,6 +262,13 @@
 			<autodiscovery enabled="false" problemReportingEnabled="true" selectedProfileId=""/>
 		</scannerConfigBuildInfo>
 	</storageModule>
-	<storageModule moduleId="refreshScope"/>
+	<storageModule moduleId="refreshScope" versionNumber="2">
+		<configuration configurationName="Debug">
+			<resource resourceType="PROJECT" workspacePath="/JIGPROJECT"/>
+		</configuration>
+		<configuration configurationName="Release">
+			<resource resourceType="PROJECT" workspacePath="/JIGPROJECT"/>
+		</configuration>
+	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
 </cproject>
