@@ -38,6 +38,30 @@
    
 /* Exported macro ------------------------------------------------------------*/
 
+#define DEST_IP_ADDR0   (uint8_t) 52
+#define DEST_IP_ADDR1   (uint8_t) 59
+#define DEST_IP_ADDR2   (uint8_t) 17
+#define DEST_IP_ADDR3   (uint8_t) 149
+
+#define DEST_PORT       ((uint16_t)7U)
+
+/*Static IP ADDRESS: IP_ADDR0.IP_ADDR1.IP_ADDR2.IP_ADDR3 */
+#define IP_ADDR0   ((uint8_t) 192U)
+#define IP_ADDR1   ((uint8_t) 168U)
+#define IP_ADDR2   ((uint8_t) 1U)
+#define IP_ADDR3   ((uint8_t) 45U)
+
+/*NETMASK*/
+#define NETMASK_ADDR0   ((uint8_t) 255U)
+#define NETMASK_ADDR1   ((uint8_t) 255U)
+#define NETMASK_ADDR2   ((uint8_t) 255U)
+#define NETMASK_ADDR3   ((uint8_t) 0U)
+
+/*Gateway Address*/
+#define GW_ADDR0   ((uint8_t) 192U)
+#define GW_ADDR1   ((uint8_t) 168U)
+#define GW_ADDR2   ((uint8_t) 0U)
+#define GW_ADDR3   ((uint8_t) 1U)
 /* Exported functions ------------------------------------------------------- */
 void ethernet_link_status_updated(struct netif *netif);
 void Ethernet_Link_Periodic_Handle(struct netif *netif);

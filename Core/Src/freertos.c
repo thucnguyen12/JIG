@@ -124,6 +124,10 @@
 
 /*********************       NET VAR    **********************************/
 	struct netif g_netif;
+
+	static TaskHandle_t m_task_handle_protocol = NULL; //NET APP TASK
+	osThreadId DHCP_id;
+	SemaphoreHandle_t hHttpStart;
 /*****************************************************************/
 
 //************************** MD5 CRC CONFIG VAR ************************//
@@ -161,7 +165,7 @@ static void on_btn_hold_so_long(int index, int event, void * pData);
 
 /***************  ETHERNET PFP      ****************************/
 void Netif_Config (bool restart);
-void http_task(void *argument);
+void net_task(void *argument);
 static void dns_initialize(void);
 /**************************************************************/
 
@@ -277,9 +281,9 @@ void StartDefaultTask(void const * argument)
 
   m_button_event_group = xEventGroupCreate(); //>>>>>>> CREATE BUTTON EVENT VAR
   //init lwip
-//  tcpip_init( NULL, NULL );
-//  Netif_Config (false);
-//  dns_initialize();
+  tcpip_init( NULL, NULL );
+  Netif_Config (false);
+  dns_initialize();
 
 //*************************** INIT BUTTON APP**********************//
   app_btn_config_t btn_conf;
@@ -336,11 +340,19 @@ void StartDefaultTask(void const * argument)
   {
 	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
   }
-
+  if (m_task_handle_protocol == NULL)
+  {
+  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
+  }
+#if LWIP_DHCP
+	  /* Start DHCPClient */
+	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
+	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
+#endif
   /* Infinite loop */
   for(;;)
   {
-		tud_task();
+	tud_task();
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
@@ -663,6 +675,60 @@ void Netif_Config (bool restart)
 
 }
 //****************************************************************************//
+
+//*********************    NET APP TASK       **********************************//
+void net_task(void *argument)
+{
+	DEBUG_INFO("ENTER THE HTTP AND MQTT TASK\r\n");
+	xSemaphoreTake(hHttpStart, portMAX_DELAY);
+	DEBUG_INFO ("PASS SEM TAKE \r\n");
+//	m_http_test_started = true;
+
+
+#if 1
+	// http://httpbin.org/get
+	for (;;)
+	{
+		if(m_http_test_started == false)
+		{
+			m_http_test_started = true;
+			app_http_config_t http_cfg;
+			sprintf(http_cfg.url, "%s", "httpbin.org");
+			http_cfg.port = 80;
+			sprintf(http_cfg.file, "%s", "/get");
+			http_cfg.on_event_cb = (void*)0;
+			app_http_start(&http_cfg);
+		}
+		osDelay(100);
+	}
+#else
+    mqtt_client_cfg_t mqtt_cfg =
+    {
+        .periodic_sub_req_s = 120,            // second
+        .broker_addr = "broker.hivemq.com",
+        .port = 1883,
+        .password = NULL,
+        .client_id = "test_lwip_porting",
+    };
+    mqtt_client_initialize(&mqtt_cfg);
+	for(;;)
+	{
+//		xSemaphoreTake(hHttpStart, portMAX_DELAY);
+		mqtt_client_polling_task(NULL);
+		osDelay(1000);
+
+	}
+#endif
+//	for(;;)
+//	{
+//
+//		osDelay(1000);
+//
+//	}
+}
+
+
+
 
 /**************    BUTTON APP FUNCTION         **************/
 void button_initialize(uint32_t button_num)
