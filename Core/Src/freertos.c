@@ -323,14 +323,14 @@ void StartDefaultTask(void const * argument)
 	m_disk_is_mounted = true;
 	DEBUG_INFO ("Mount flash ok\r\n");
   }
-//  	  TCHAR label[32];
-//  	  f_getlabel(USERPath, label, 0);
-//  	  DEBUG_INFO("Label %s\r\n", label);
-//  if (strcmp(label, "BSAFE JIG"))
-//  {
-//	DEBUG_INFO("Set label\r\n");
-//	f_setlabel("BSAFE JIG");
-//  }
+  	  TCHAR label[32];
+  	  f_getlabel(USERPath, label, 0);
+  	  DEBUG_INFO("Label %s\r\n", label);
+  if (strcmp(label, "BSAFE JIG"))
+  {
+	DEBUG_INFO("Set label\r\n");
+	f_setlabel("BSAFE JIG");
+  }
 /************************************************************/
   tusb_init ();
   // Create CDC task
@@ -352,8 +352,11 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+	HAL_GPIO_TogglePin (LED_SUCCESS_GPIO_Port, LED_SUCCESS_Pin);
+
 	tud_task();
-    osDelay(1);
+
+    osDelay(100);
   }
   /* USER CODE END StartDefaultTask */
 }
