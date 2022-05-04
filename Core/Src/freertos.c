@@ -279,26 +279,26 @@ void StartDefaultTask(void const * argument)
 
 //  DEBUG_INFO("tusb_init\r\n");
 
-  m_button_event_group = xEventGroupCreate(); //>>>>>>> CREATE BUTTON EVENT VAR
-  //init lwip
-  tcpip_init( NULL, NULL );
-  Netif_Config (false);
-  dns_initialize();
+//  m_button_event_group = xEventGroupCreate(); //>>>>>>> CREATE BUTTON EVENT VAR
+         ////init lwip
+//  tcpip_init( NULL, NULL );
+//  Netif_Config (false);
+//  dns_initialize();
 
 //*************************** INIT BUTTON APP**********************//
-  app_btn_config_t btn_conf;
-  btn_conf.config = m_button_cfg;
-  btn_conf.btn_count = 2;
-  btn_conf.get_tick_cb = xTaskGetTickCount;
-  btn_conf.btn_initialize = button_initialize;
-  btn_conf.btn_read = btn_read;
-  btn_conf.scan_interval_ms = 50;
-  app_btn_initialize(&btn_conf);
-//    app_btn_initialize(&btn_conf);
-  app_btn_register_callback(APP_BTN_EVT_HOLD, on_btn_hold, NULL);
-  app_btn_register_callback(APP_BTN_EVT_HOLD_SO_LONG, on_btn_hold_so_long, NULL);
-  app_btn_register_callback(APP_BTN_EVT_PRESSED, on_btn_pressed, NULL);
-  app_btn_register_callback(APP_BTN_EVT_RELEASED, on_btn_release, NULL);
+//  app_btn_config_t btn_conf;
+//  btn_conf.config = m_button_cfg;
+//  btn_conf.btn_count = 2;
+//  btn_conf.get_tick_cb = xTaskGetTickCount;
+//  btn_conf.btn_initialize = button_initialize;
+//  btn_conf.btn_read = btn_read;
+//  btn_conf.scan_interval_ms = 50;
+//  app_btn_initialize(&btn_conf);
+////    app_btn_initialize(&btn_conf);
+//  app_btn_register_callback(APP_BTN_EVT_HOLD, on_btn_hold, NULL);
+//  app_btn_register_callback(APP_BTN_EVT_HOLD_SO_LONG, on_btn_hold_so_long, NULL);
+//  app_btn_register_callback(APP_BTN_EVT_PRESSED, on_btn_pressed, NULL);
+//  app_btn_register_callback(APP_BTN_EVT_RELEASED, on_btn_release, NULL);
 //************************* INIT BUTTON END **********************//
 
 //****************** MOUNT FLASH DISK *****************************//
@@ -323,32 +323,32 @@ void StartDefaultTask(void const * argument)
 	m_disk_is_mounted = true;
 	DEBUG_INFO ("Mount flash ok\r\n");
   }
-  	  TCHAR label[32];
-  	  f_getlabel(USERPath, label, 0);
-  	  DEBUG_INFO("Label %s\r\n", label);
-  if (strcmp(label, "BSAFE JIG"))
-  {
-	DEBUG_INFO("Set label\r\n");
-	f_setlabel("BSAFE JIG");
-  }
+//  	  TCHAR label[32];
+//  	  f_getlabel(USERPath, label, 0);
+//  	  DEBUG_INFO("Label %s\r\n", label);
+//  if (strcmp(label, "BSAFE JIG"))
+//  {
+//	DEBUG_INFO("Set label\r\n");
+//	f_setlabel("BSAFE JIG");
+//  }
 /************************************************************/
   tusb_init ();
   // Create CDC task
   (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
   // Create flashtask
-  if (m_task_connect_handle == NULL)
-  {
-	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
-  }
-  if (m_task_handle_protocol == NULL)
-  {
-  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
-  }
-#if LWIP_DHCP
-	  /* Start DHCPClient */
-	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
-	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
-#endif
+//  if (m_task_connect_handle == NULL)
+//  {
+//	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
+//  }
+//  if (m_task_handle_protocol == NULL)
+//  {
+//  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
+//  }
+//#if LWIP_DHCP
+//	  /* Start DHCPClient */
+//	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
+//	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
+//#endif
   /* Infinite loop */
   for(;;)
   {
