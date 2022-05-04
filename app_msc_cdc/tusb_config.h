@@ -32,12 +32,13 @@
 
 
 // HuyTV
-
+#include "app_debug.h"
  #define CFG_TUSB_MCU                 OPT_MCU_STM32F2
  #define CFG_TUSB_OS                  OPT_OS_FREERTOS
  #define BOARD_DEVICE_RHPORT_SPEED    OPT_MODE_FULL_SPEED
  #define BOARD_DEVICE_RHPORT_NUM      0
  #define CFG_TUSB_RHPORT_MODE         (OPT_MODE_DEVICE | OPT_MODE_FULL_SPEED)
+#define CFG_TUSB_DEBUG_PRINTF	DEBUG_RAW
 // end
 
 
@@ -87,6 +88,7 @@
 #ifndef CFG_TUSB_DEBUG
   #define CFG_TUSB_DEBUG          3
 #endif
+
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put

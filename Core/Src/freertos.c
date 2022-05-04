@@ -53,6 +53,8 @@
 #include "app_http.h"
 #include "lwip/dns.h"
 #include "mqtt_client.h"
+#include "SEGGER_RTT_Conf.h"
+#include "SEGGER_RTT.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -196,6 +198,12 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
   *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
   /* place for user code */
 }
+
+uint32_t rtt_tx(const void *buffer, uint32_t len)
+{
+	return SEGGER_RTT_Write(0, buffer, len);
+}
+
 /* USER CODE END GET_IDLE_TASK_MEMORY */
 
 /**
@@ -245,6 +253,7 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void const * argument)
 {
   /* init code for LWIP */
+	app_debug_register_callback_print(rtt_tx);
 //  MX_LWIP_Init();
 
   /* init code for USB_DEVICE */
@@ -268,7 +277,7 @@ void StartDefaultTask(void const * argument)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
 
   GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -281,9 +290,9 @@ void StartDefaultTask(void const * argument)
 
   m_button_event_group = xEventGroupCreate(); //>>>>>>> CREATE BUTTON EVENT VAR
   //init lwip
-  tcpip_init( NULL, NULL );
-  Netif_Config (false);
-  dns_initialize();
+//  tcpip_init( NULL, NULL );
+//  Netif_Config (false);
+//  dns_initialize();
 
 //*************************** INIT BUTTON APP**********************//
   app_btn_config_t btn_conf;
@@ -333,22 +342,22 @@ void StartDefaultTask(void const * argument)
   }
 /************************************************************/
   tusb_init ();
-  // Create CDC task
-  (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
-  // Create flashtask
-  if (m_task_connect_handle == NULL)
-  {
-	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
-  }
-  if (m_task_handle_protocol == NULL)
-  {
-  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
-  }
-#if LWIP_DHCP
-	  /* Start DHCPClient */
-	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
-	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
-#endif
+//  // Create CDC task
+//  (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
+//  // Create flashtask
+//  if (m_task_connect_handle == NULL)
+//  {
+//	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
+//  }
+//  if (m_task_handle_protocol == NULL)
+//  {
+//  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
+//  }
+//#if LWIP_DHCP
+//	  /* Start DHCPClient */
+//	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
+//	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
+//#endif
   /* Infinite loop */
   for(;;)
   {

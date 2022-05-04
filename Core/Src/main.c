@@ -102,7 +102,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_ADC1_Init();
-  MX_FATFS_Init();
+//  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
   m_lock_debug = xSemaphoreCreateMutex();
   xSemaphoreGive(m_lock_debug);
