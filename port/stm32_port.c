@@ -141,10 +141,13 @@ void loader_port_enter_bootloader(void *config)
     esp_loader_config_t *tmp = (esp_loader_config_t*)config;
     HAL_GPIO_WritePin((GPIO_TypeDef*)tmp->reset_trigger_port, tmp->reset_trigger_pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin((GPIO_TypeDef*)tmp->gpio0_trigger_port, tmp->gpio0_trigger_pin, GPIO_PIN_RESET);
+    DEBUG_INFO ("CLEAR IO0 AND EN PIN\r\n");
     uint32_t now = xTaskGetTickCount();
     vTaskDelayUntil(&now, 2);
     HAL_GPIO_WritePin((GPIO_TypeDef*)tmp->reset_trigger_port, tmp->reset_trigger_pin, GPIO_PIN_SET);
+    DEBUG_INFO ("ESP_EN SET AGAIN \r\n");
     vTaskDelayUntil(&now, 100);
+
 }
 
 

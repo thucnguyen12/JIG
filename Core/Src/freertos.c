@@ -106,7 +106,11 @@
 	StackType_t  cdc_stack[CDC_STACK_SZIE];
 	StaticTask_t cdc_taskdef;
 /*************************************************************************************/
+//**************************    tiny USB TASK VAR     ***************************************//
+	static TaskHandle_t m_USB_handle = NULL;
 
+
+//*******************************************************************************************//
 /*********************      flash task var             ***********************/
 	static TaskHandle_t m_task_connect_handle = NULL;
 
@@ -171,7 +175,7 @@ static void dns_initialize(void);
 
 /*****************        TASK PFP                *************/
 void cdc_task(void* params);
-
+void usb_task (void* params);
 void flash_task(void *argument);
 /**************************************************************/
 /* USER CODE END FunctionPrototypes */
@@ -323,9 +327,9 @@ void StartDefaultTask(void const * argument)
 	m_disk_is_mounted = true;
 	DEBUG_INFO ("Mount flash ok\r\n");
   }
-  	  TCHAR label[32];
-  	  f_getlabel(USERPath, label, 0);
-  	  DEBUG_INFO("Label %s\r\n", label);
+  TCHAR label[32];
+  f_getlabel(USERPath, label, 0);
+  DEBUG_INFO("Label %s\r\n", label);
   if (strcmp(label, "BSAFE JIG"))
   {
 	DEBUG_INFO("Set label\r\n");
@@ -336,10 +340,14 @@ void StartDefaultTask(void const * argument)
   // Create CDC task
   (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
   // Create flashtask
-//  if (m_task_connect_handle == NULL)
-//  {
-//	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
-//  }
+  if (m_task_connect_handle == NULL)
+  {
+	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
+  }
+  if (m_USB_handle == NULL)
+	{
+	  xTaskCreate(usb_task, "usb_task", 1024, NULL, 0, &m_USB_handle);// pio =1
+	}
 //  if (m_task_handle_protocol == NULL)
 //  {
 //  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
@@ -354,9 +362,11 @@ void StartDefaultTask(void const * argument)
   {
 //	HAL_GPIO_TogglePin (LED_DONE_GPIO_Port, LED_DONE_Pin);
 
-	tud_task();
-
-    osDelay(100);
+	if (led_busy_toggle = 0)
+	{
+		HAL_GPIO_WritePin (LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
+	}
+    osDelay(10);
   }
   /* USER CODE END StartDefaultTask */
 }
@@ -372,7 +382,11 @@ uint32_t cdc_tx(const void *buffer, uint32_t size)
 	lwrb_write(&m_ringbuffer_usb_cdc_tx, buffer, size);
 	return size;
 }
-
+void usb_task (void* params)
+{
+	DEBUG_INFO ("USB TASK\r\n");
+	tud_task();
+}
 void cdc_task(void* params)
 {
 	DEBUG_INFO("ENTER CDC TASK\r\n");
@@ -449,6 +463,7 @@ void cdc_task(void* params)
 				break;
 			}
 		}
+
 		vTaskDelay(pdMS_TO_TICKS(1));
 	}
 }
@@ -521,7 +536,7 @@ void flash_task(void *argument)
 	}
 	m_loader_cfg.gpio0_trigger_port = (uint32_t)ESP_IO0_GPIO_Port;
 	m_loader_cfg.reset_trigger_port = (uint32_t)ESP_EN_GPIO_Port;
-	m_loader_cfg.uart_addr = (uint32_t)USART3;
+	m_loader_cfg.uart_addr = (uint32_t)USART2;
 	esp_loader_error_t err;
 
 	// Clear led busy & success, set led error

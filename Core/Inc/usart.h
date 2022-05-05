@@ -41,13 +41,13 @@ void MX_USART2_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 uint32_t usart_logger_put(const void *buffer, uint32_t size);
-void usart3_rx_complete_callback(bool status);
-void usart3_tx_cplt_cb(void);
+void usart2_rx_complete_callback(bool status);
+void usart2_tx_cplt_cb(void);
 void usart_change_baudrate(uint32_t uart_addr, uint32_t baudrate);
 uint32_t usart_get_bytes(uint32_t uart_addr, uint8_t *data, uint32_t size, uint32_t timeout);
 void usart_send_bytes(uint32_t uart_addr, uint8_t *data, uint32_t size);
 uint32_t usart_flush_rx_ringbuffer(uint32_t uart_addr);
-void usart3_start_dma_rx(void);
+void usart2_start_dma_rx(void);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

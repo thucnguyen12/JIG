@@ -187,7 +187,28 @@ void DMA1_Stream0_IRQHandler(void)
 void DMA1_Stream5_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Stream5_IRQn 0 */
-
+	if (LL_DMA_IsActiveFlag_HT5(DMA1))
+	{
+//        DEBUG_PRINTF("USART1 HT\r\n");
+		LL_DMA_ClearFlag_HT5(DMA1);
+		// DEBUG_ISR("HT RX cplt\r\n");
+		usart2_rx_complete_callback(true);
+	}
+	if (LL_DMA_IsActiveFlag_TC5(DMA1))
+	{
+		LL_DMA_ClearFlag_TC5(DMA1);
+		/* Call function Reception complete Callback */
+		// DEBUG_ISR("TC RX cplt\r\n");
+		usart2_rx_complete_callback(true);
+		usart2_start_dma_rx();
+	}
+	else if (LL_DMA_IsActiveFlag_TE5(DMA1))
+	{
+		/* Call Error function */
+		DEBUG_ISR("USART2 Error\r\n");
+		usart2_rx_complete_callback(false);
+		// USART_TransferError_Callback();
+	}
   /* USER CODE END DMA1_Stream5_IRQn 0 */
 
   /* USER CODE BEGIN DMA1_Stream5_IRQn 1 */
@@ -201,7 +222,11 @@ void DMA1_Stream5_IRQHandler(void)
 void DMA1_Stream6_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Stream6_IRQn 0 */
-
+	if(LL_DMA_IsActiveFlag_TC6(DMA1))
+	{
+		LL_DMA_ClearFlag_TC6(DMA1);
+		usart2_tx_cplt_cb();
+	}
   /* USER CODE END DMA1_Stream6_IRQn 0 */
 
   /* USER CODE BEGIN DMA1_Stream6_IRQn 1 */
@@ -229,7 +254,33 @@ void TIM2_IRQHandler(void)
 void USART2_IRQHandler(void)
 {
   /* USER CODE BEGIN USART2_IRQn 0 */
+	 if (LL_USART_IsEnabledIT_IDLE(USART2) && LL_USART_IsActiveFlag_IDLE(USART2))
+	    {
+	        // DEBUG_ISR("IDLE\r\n");
+	        LL_USART_ClearFlag_IDLE(USART2);        /* Clear IDLE line flag */
+	        usart2_rx_complete_callback(true);
 
+	    }
+
+	    if (LL_USART_IsActiveFlag_ORE(USART2))
+	    {
+	        DEBUG_ISR("USART2 Overrun\r\n");
+	        uint32_t tmp = USART2->DR;
+	        (void)tmp;
+	        LL_USART_ClearFlag_ORE(USART2);
+	    }
+
+	    if (LL_USART_IsActiveFlag_FE(USART2))
+	    {
+	        DEBUG_ISR("USART2 Frame error\r\n");
+	        LL_USART_ClearFlag_FE(USART2);
+	    }
+
+	    if (LL_USART_IsActiveFlag_NE(USART2))
+	    {
+	        DEBUG_ISR("Noise error\r\n");
+	        LL_USART_ClearFlag_NE(USART2);
+	    }
   /* USER CODE END USART2_IRQn 0 */
   /* USER CODE BEGIN USART2_IRQn 1 */
 
