@@ -136,7 +136,7 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
     HAL_NVIC_SetPriority(ETH_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(ETH_IRQn);
   /* USER CODE BEGIN ETH_MspInit 1 */
-
+    HAL_GPIO_WritePin(W_ENET_RST_GPIO_Port, W_ENET_RST_Pin, GPIO_PIN_SET);
   /* USER CODE END ETH_MspInit 1 */
   }
 }
@@ -210,8 +210,8 @@ static void low_level_init(struct netif *netif)
 
    uint8_t MACAddr[6] ;
   heth.Instance = ETH;
-  heth.Init.AutoNegotiation = ETH_AUTONEGOTIATION_ENABLE;
-  heth.Init.Speed = ETH_SPEED_100M;
+  heth.Init.AutoNegotiation = ETH_AUTONEGOTIATION_DISABLE;
+  heth.Init.Speed = ETH_SPEED_10M;
   heth.Init.DuplexMode = ETH_MODE_FULLDUPLEX;
   heth.Init.PhyAddress = DP83848_PHY_ADDRESS;
   MACAddr[0] = 0x00;
@@ -226,7 +226,7 @@ static void low_level_init(struct netif *netif)
   heth.Init.MediaInterface = ETH_MEDIA_INTERFACE_RMII;
 
   /* USER CODE BEGIN MACADDRESS */
-
+  DEBUG_INFO("ETH low level init\r\n");
   /* USER CODE END MACADDRESS */
 
   hal_eth_init_status = HAL_ETH_Init(&heth);
@@ -235,6 +235,11 @@ static void low_level_init(struct netif *netif)
   {
     /* Set netif link flag */
     netif->flags |= NETIF_FLAG_LINK_UP;
+    DEBUG_INFO("Init OK\r\n");
+  }
+  else
+  {
+	  DEBUG_WARN("HAL_ETH_Init failed\r\n");
   }
   /* Initialize Tx Descriptors list: Chain Mode */
   HAL_ETH_DMATxDescListInit(&heth, DMATxDscrTab, &Tx_Buff[0][0], ETH_TXBUFNB);
@@ -426,7 +431,7 @@ static struct pbuf * low_level_input(struct netif *netif)
   if (HAL_ETH_GetReceivedFrame_IT(&heth) != HAL_OK)
 
     return NULL;
-
+  DEBUG_VERBOSE("%s : new data\r\n", __FUNCTION__);
   /* Obtain the size of the packet and put it into the "len" variable. */
   len = heth.RxFrameInfos.length;
   buffer = (uint8_t *)heth.RxFrameInfos.buffer;
@@ -435,6 +440,10 @@ static struct pbuf * low_level_input(struct netif *netif)
   {
     /* We allocate a pbuf chain of pbufs from the Lwip buffer pool */
     p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
+  }
+  else
+  {
+	  DEBUG_ERROR("Invalid frame len\r\n");
   }
 
   if (p != NULL)
@@ -464,6 +473,10 @@ static struct pbuf * low_level_input(struct netif *netif)
       memcpy( (uint8_t*)((uint8_t*)q->payload + payloadoffset), (uint8_t*)((uint8_t*)buffer + bufferoffset), byteslefttocopy);
       bufferoffset = bufferoffset + byteslefttocopy;
     }
+  }
+  else
+  {
+	  DEBUG_ERROR("%s NULL\r\n", __FUNCTION__);
   }
 
     /* Release descriptors to DMA */

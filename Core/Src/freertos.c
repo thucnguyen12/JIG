@@ -253,7 +253,14 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void const * argument)
 {
   /* init code for LWIP */
+	HAL_GPIO_WritePin(W_ENET_RST_GPIO_Port, W_ENET_RST_Pin, GPIO_PIN_SET);
 	app_debug_register_callback_print(rtt_tx);
+	vTaskDelay(10);
+#if LWIP_DHCP
+	  /* Start DHCPClient */
+	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
+	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
+#endif
 //
 
   /* init code for USB_DEVICE */
@@ -346,15 +353,11 @@ void StartDefaultTask(void const * argument)
 //  {
 //	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
 //  }
-//  if (m_task_handle_protocol == NULL)
-//  {
-//  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
-//  }
-#if LWIP_DHCP
-	  /* Start DHCPClient */
-	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
-	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
-#endif
+  if (m_task_handle_protocol == NULL)
+  {
+  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
+  }
+
   /* Infinite loop */
   for(;;)
   {
@@ -666,18 +669,17 @@ void Netif_Config (bool restart)
 	  if (netif_is_link_up(&g_netif))
 	  {
 	    /* When the netif is fully configured this function must be called */
+		  DEBUG_INFO("Set link up\r\n");
 	    netif_set_up(&g_netif);
 	  }
 	  else
 	  {
 	    /* When the netif link is down this function must be called */
+		  DEBUG_INFO("Set link down\r\n");
 	    netif_set_down(&g_netif);
 	  }
 	  app_ethernet_notification(&g_netif);
 	  /* Set the link callback function, this function is called on change of link status*/
-
-
-	  DEBUG_INFO ("SET LINK CALLBACK \r\n");
 
 }
 //****************************************************************************//
@@ -685,17 +687,15 @@ void Netif_Config (bool restart)
 //*********************    NET APP TASK       **********************************//
 void net_task(void *argument)
 {
-	DEBUG_INFO("ENTER THE HTTP AND MQTT TASK\r\n");
-	xSemaphoreTake(hHttpStart, portMAX_DELAY);
-	DEBUG_INFO ("PASS SEM TAKE \r\n");
-//	m_http_test_started = true;
-
-
+	while (!eth_got_ip())
+	{
+		vTaskDelay(1000/portTICK_PERIOD_MS);
+	}
 #if 1
 	// http://httpbin.org/get
 	for (;;)
 	{
-		if(m_http_test_started == false)
+		if (m_http_test_started == false)
 		{
 			m_http_test_started = true;
 			app_http_config_t http_cfg;
@@ -704,8 +704,12 @@ void net_task(void *argument)
 			sprintf(http_cfg.file, "%s", "/get");
 			http_cfg.on_event_cb = (void*)0;
 			app_http_start(&http_cfg);
+			vTaskDelete(NULL);
 		}
-		osDelay(100);
+		else
+		{
+			osDelay(100);
+		}
 	}
 #else
     mqtt_client_cfg_t mqtt_cfg =

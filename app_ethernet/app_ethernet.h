@@ -71,6 +71,7 @@ void DHCP_Thread(void const * argument);
 void app_ethernet_notification(struct netif *netif);
 #endif  
 extern bool m_http_test_started;
+bool eth_got_ip(void);
 #ifdef __cplusplus
 }
 #endif

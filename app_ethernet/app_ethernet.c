@@ -47,12 +47,13 @@ extern ETH_HandleTypeDef heth;
 uint32_t EthernetLinkTimer;
 
 #if LWIP_DHCP
-#define MAX_DHCP_TRIES  4
+#define MAX_DHCP_TRIES  100
 uint32_t DHCPfineTimer = 0;
 uint8_t DHCP_state = DHCP_OFF;
 bool m_last_link_up_status = false;
 static bool m_ip_assigned = false;
 bool m_http_test_started = false;
+static bool m_got_ip = false;
 #endif
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,24 +65,18 @@ bool m_http_test_started = false;
   */
 void ethernet_link_status_updated(struct netif *netif)
 {
-	DEBUG_INFO ("LINK STATUS CALLBACK \r\n");
-  if (netif_is_link_up(netif))
-  {
-#if LWIP_DHCP
-    /* Update DHCP state machine */
-    DHCP_state = DHCP_START;
-#endif /* LWIP_DHCP */
-    DEBUG_INFO("DHCP START STATUS UPDATE\r\n");
-
-  }
-  else
-  {
-#if LWIP_DHCP
-    /* Update DHCP state machine */
-    DHCP_state = DHCP_LINK_DOWN;
-    DEBUG_INFO("DHCP LINK DOWN STATUS UPDATE\r\n");
-  }
-#endif
+	DEBUG_INFO ("LINK STATUS CALLBACK\r\n");
+	static uint32_t m_last_link_status = 0;
+	uint32_t link_is_up = !netif_is_link_up(netif);
+    if (link_is_up == false && (m_last_link_status != link_is_up))
+    {
+        DEBUG_INFO("Netif link down\r\n");
+    }
+    else if (link_is_up == true && (m_last_link_status != link_is_up))
+    {
+    	DEBUG_INFO("Netif link up\r\n");
+    }
+    m_last_link_status = link_is_up;
 }
 
 void app_ethernet_notification(struct netif *netif)
@@ -91,6 +86,7 @@ void app_ethernet_notification(struct netif *netif)
     /* Update DHCP state machine */
     DHCP_state = DHCP_START;
     DEBUG_INFO("Start DHCP\r\n");
+//    m_last_link_up_status = true;
   }
   else
   {
@@ -109,6 +105,11 @@ static void dns_initialize(void)
     dns_init();
 }
 
+bool eth_got_ip(void)
+{
+	return m_got_ip;
+}
+
 #if LWIP_DHCP
 /**
   * @brief  DHCP Process
@@ -116,6 +117,41 @@ static void dns_initialize(void)
   * @retval None
   */
 uint8_t iptxt[32];
+bool eth_is_cable_connected(struct netif *netif)
+{
+	uint32_t phyreg = 0;
+	uint32_t err = 0;
+	bool phy_link_status = false;
+	if (HAL_ETH_ReadPHYRegister(&heth, PHY_BSR, &phyreg) == HAL_OK)
+	{
+		phy_link_status = phyreg & PHY_LINKED_STATUS ? 1 : 0;
+		if (phy_link_status == false && m_last_link_up_status != phy_link_status)
+		{
+			m_got_ip = false;
+			DEBUG_INFO("Ethernet disconnected\n", err);
+			m_last_link_up_status = false;
+			return false;
+		}
+		else if (phy_link_status  && (m_last_link_up_status != phy_link_status))
+		{
+			DEBUG_INFO("Ethernet connected\n", err);
+			m_last_link_up_status = true;
+			netif_set_up(netif);
+//            if (DHCP_state == DHCP_OFF)
+//            {
+////            	Netif_Config (false);
+//            }
+//            DEBUG_INFO("Restart DHCP\n", err);
+			DHCP_state = DHCP_START;
+		}
+		else if (!phy_link_status)
+		{
+			DEBUG_VERBOSE("PHY 0x%04X\r\n", phyreg);
+		}
+	}
+	return phy_link_status;
+}
+
 void DHCP_Thread(void const * argument)
 {
 //	MX_LWIP_Init();
@@ -129,33 +165,41 @@ void DHCP_Thread(void const * argument)
   ip_addr_t netmask;
   ip_addr_t gw;
   struct dhcp *dhcp;
-  uint32_t phyreg = 0;
+
   DEBUG_INFO("DHCP THREAT START \r\n");
-  uint32_t err = 0;
+
   for (;;)
   {
     switch (DHCP_state)
     {
     case DHCP_START:
       {
+    	  m_got_ip = false;
         ip_addr_set_zero_ip4(&netif->ip_addr);
         ip_addr_set_zero_ip4(&netif->netmask);
         ip_addr_set_zero_ip4(&netif->gw);
-
-        dhcp_start (netif);
-        DHCP_state = DHCP_WAIT_ADDRESS;
-        DEBUG_INFO ("LOOKING FOR DHCP SEVER \r\n");
+        if (eth_is_cable_connected(netif))
+        {
+			DEBUG_INFO ("LOOKING FOR DHCP \r\n");
+			err_t err = dhcp_start (netif);
+			if (err == ERR_OK)
+			{
+				DHCP_state = DHCP_WAIT_ADDRESS;
+				DEBUG_INFO ("LOOKING FOR DHCP SEVER\r\n");
+			}
+        }
       }
       break;
     case DHCP_WAIT_ADDRESS:
       {
-    	  DEBUG_INFO ("WAITING DHCP SEVER \r\n");
+    	  DEBUG_INFO ("WAITING DHCP SEVER\r\n");
         if (dhcp_supplied_address(netif))
         {
           DHCP_state = DHCP_ADDRESS_ASSIGNED;
           DEBUG_INFO("IP address assigned by a DHCP server %s\r\n", ip4addr_ntoa(netif_ip4_addr(netif)));
 //          xSemaphoreGive(hHttpStart);
           m_http_test_started = false;
+          m_got_ip = true;
         }
         else
         {
@@ -177,7 +221,8 @@ void DHCP_Thread(void const * argument)
             DEBUG_INFO ("Static IP address: %s\r\n", iptxt);
             m_last_link_up_status = true;
             m_ip_assigned = true;
-
+            vTaskDelay(1000);
+            NVIC_SystemReset();
           }
         }
       }
@@ -200,34 +245,13 @@ void DHCP_Thread(void const * argument)
       dhcp_stop (netif);
       m_ip_assigned = false;
       DEBUG_INFO ("DHCPLINK DOWN\r\n");
-      Netif_Config (true);
+      m_got_ip = false;
+//      Netif_Config (true);
     }
     break;
     default: break;
     }
-    if ((err = HAL_ETH_ReadPHYRegister(&heth, PHY_BSR, &phyreg)) != HAL_OK)
-    {
-        DEBUG_INFO("HAL_ETH_ReadPHYRegister error %d\n", err);
-    }
-    else
-    {
-        bool phy_link_status = phyreg & PHY_LINKED_STATUS ? 1 : 0;
-        if (phy_link_status == false && m_last_link_up_status != phy_link_status)
-        {
-            DEBUG_INFO("Ethernet disconnected\n", err);
-            m_last_link_up_status = false;
-        }
-        else if (phy_link_status  && (m_last_link_up_status != phy_link_status))
-        {
-            DEBUG_INFO("Ethernet connected\n", err);
-            m_last_link_up_status = true;
-            DHCP_state = DHCP_START;
-        }
-        else
-        {
-        	DEBUG_INFO("PHY 0x%04X\r\n", phyreg);
-        }
-    }
+    eth_is_cable_connected(netif);
     // doi theo PHY
     /* wait 500 ms */
     osDelay(500);

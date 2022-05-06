@@ -80,7 +80,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+   HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -101,7 +101,7 @@ int main(void)
   MX_UART5_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
-  MX_ADC1_Init();
+//  MX_ADC1_Init();
 //  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
   m_lock_debug = xSemaphoreCreateMutex();

@@ -917,6 +917,7 @@ void app_debug_print_raw(const char *fmt, ...)
 
         case 'd':
         case 'i':
+        case 'h':
             flags |= SIGN;
 
         case 'u':

@@ -35,6 +35,7 @@
 #include "cpu.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include "app_debug.h"
 
 typedef int sys_prot_t;
 
@@ -79,8 +80,12 @@ typedef int sys_prot_t;
 
 #endif
 
-#define LWIP_PLATFORM_ASSERT(x) do {printf("Assertion \"%s\" failed at line %d in %s\n", \
-                                     x, __LINE__, __FILE__); } while(0)
+#define LWIP_PLATFORM_ASSERT(x) do {DEBUG_RAW("Assertion \"%s\" failed at line %d in %s\r\n", \
+                                     x, __LINE__, __FILE__);	\
+                                     /*__disable_irq(); while (1);*/} while(0)
+
+#define LWIP_PLATFORM_DIAG(x) do {DEBUG_RAW x;} while(0)
+
 
 /* Define random number generator function */
 #define LWIP_RAND() ((u32_t)rand())
