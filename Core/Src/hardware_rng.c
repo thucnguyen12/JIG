@@ -30,9 +30,13 @@
 #include "main.h"
 #include <string.h>
 
-#include "mbedtls/entropy_poll.h"
+//#include "mbedtls/entropy_poll.h"
 
 
+uint32_t Random_Number(void)
+{
+		 return SysTick->VAL;
+}
 
 int mbedtls_hardware_poll( void *Data, unsigned char *Output, size_t Len, size_t *oLen )
 {

@@ -152,6 +152,7 @@ bool eth_is_cable_connected(struct netif *netif)
 	return phy_link_status;
 }
 
+extern void SSL_Client(void const *arg);
 void DHCP_Thread(void const * argument)
 {
 //	MX_LWIP_Init();
@@ -200,6 +201,9 @@ void DHCP_Thread(void const * argument)
 //          xSemaphoreGive(hHttpStart);
           m_http_test_started = false;
           m_got_ip = true;
+          DEBUG_INFO("Freeheap size %u\r\n", xPortGetFreeHeapSize());
+          vTaskDelay(100);
+          SSL_Client(NULL);
         }
         else
         {

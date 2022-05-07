@@ -72,8 +72,8 @@
 
 //*****************   CDC TUSB DEFINE *********************************//
 
-#define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE
-#define USB_CDC_TX_RING_BUFFER_SIZE		1024
+#define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE*3
+#define USB_CDC_TX_RING_BUFFER_SIZE		2048
 
 
 /* USER CODE END PTD */
@@ -258,7 +258,7 @@ void StartDefaultTask(void const * argument)
 	vTaskDelay(10);
 #if LWIP_DHCP
 	  /* Start DHCPClient */
-	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
+	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 20);
 	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
 #endif
 //
@@ -347,22 +347,21 @@ void StartDefaultTask(void const * argument)
 /************************************************************/
   tusb_init ();
   // Create CDC task
-  (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
+  (void) xTaskCreate(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 3, NULL);// pio =2
   // Create flashtask
 //  if (m_task_connect_handle == NULL)
 //  {
 //	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
 //  }
-  if (m_task_handle_protocol == NULL)
-  {
-  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
-  }
+//  if (m_task_handle_protocol == NULL)
+//  {
+//  	  xTaskCreate(net_task, "net_task", 1024, NULL, 0, &m_task_handle_protocol);
+//  }
 
   /* Infinite loop */
   for(;;)
   {
 	tud_task();
-    osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
 }
@@ -437,7 +436,8 @@ void cdc_task(void* params)
 
 		char buffer[ (TUD_OPT_HIGH_SPEED ? 512 : 64)];
 		uint32_t size;
-		while (1)
+		bool cnt = true;
+		while (cnt)
 		{
 			uint32_t avai = tud_cdc_write_available();
 			if (avai >= sizeof(buffer))
@@ -448,7 +448,10 @@ void cdc_task(void* params)
 			if (size)
 			{
 				tud_cdc_write(buffer, size);
-				tud_cdc_write_flush();
+				if (0 == tud_cdc_write_flush())
+				{
+					cnt = false;
+				}
 			}
 			else
 			{
@@ -803,6 +806,15 @@ static void on_btn_hold_so_long(int index, int event, void * pData)
 {
     DEBUG_INFO("Button hold so long\r\n");
 }
+
+void vApplicationMallocFailedHook(void)
+{
+//	DEBUG_ERROR("Malloc failed\r\n");
+//	osDelay(100);
+	__disable_irq();
+	while(1);
+}
+
 /*******************************************************************/
 
 //**************************  DSN APP ******************************/

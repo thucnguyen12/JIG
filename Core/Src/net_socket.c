@@ -139,17 +139,20 @@ int mbedtls_net_connect( mbedtls_net_context *ctx, const char *host, const char 
     ctx->fd = (int) socket(current->ai_family, current->ai_socktype, current->ai_protocol);
     if(ctx->fd < 0)
     {
+    	DEBUG_INFO("MBEDTLS_ERR_NET_SOCKET_FAILED\r\n");
       ret = MBEDTLS_ERR_NET_SOCKET_FAILED;
       continue;
     }
 
     if(connect(ctx->fd, current->ai_addr, (uint32_t)current->ai_addrlen) == 0)
     {
+    	DEBUG_INFO("Connected\r\n");
       ret = 0;
       break;
     }
 
     close( ctx->fd );
+    DEBUG_INFO("MBEDTLS_ERR_NET_CONNECT_FAILED\r\n");
     ret = MBEDTLS_ERR_NET_CONNECT_FAILED;
   }
 
@@ -213,6 +216,7 @@ int mbedtls_net_recv( void *ctx, unsigned char *buf, size_t len )
 
   if( fd < 0 )
   {
+	  DEBUG_ERROR("[%s] , Invalid context\r\n", __FUNCTION__);
     return MBEDTLS_ERR_NET_INVALID_CONTEXT;
   }
  
@@ -222,19 +226,22 @@ int mbedtls_net_recv( void *ctx, unsigned char *buf, size_t len )
   {
     if(net_would_block(ctx) != 0)
     {
+    	DEBUG_ERROR("[%s] , MBEDTLS_ERR_SSL_WANT_READ\r\n", __FUNCTION__);
       return MBEDTLS_ERR_SSL_WANT_READ;
     }
     
     if(errno == EPIPE || errno == ECONNRESET)
     {
+    	DEBUG_ERROR("[%s] , MBEDTLS_ERR_NET_CONN_RESET\r\n", __FUNCTION__);
       return MBEDTLS_ERR_NET_CONN_RESET;
     }
 
     if(errno == EINTR)
     {
+    	DEBUG_ERROR("[%s] , MBEDTLS_ERR_SSL_WANT_READ\r\n", __FUNCTION__);
       return MBEDTLS_ERR_SSL_WANT_READ;
     }
-
+    DEBUG_ERROR("[%s] , MBEDTLS_ERR_NET_RECV_FAILED\r\n", __FUNCTION__);
     return MBEDTLS_ERR_NET_RECV_FAILED;
   }
 
@@ -288,6 +295,7 @@ int mbedtls_net_send( void *ctx, const unsigned char *buf, size_t len )
 
   if( fd < 0 )
   {
+	  DEBUG_INFO ("%s() NOT MBEDTLS_ERR_NET_INVALID_CONTEXT!!\n", __FUNCTION__);
     return MBEDTLS_ERR_NET_INVALID_CONTEXT;
   }
   
@@ -297,19 +305,23 @@ int mbedtls_net_send( void *ctx, const unsigned char *buf, size_t len )
   {
     if(net_would_block(ctx) != 0)
     {
+    	DEBUG_INFO ("%s() NOT MBEDTLS_ERR_SSL_WANT_WRITE!!\n", __FUNCTION__);
       return MBEDTLS_ERR_SSL_WANT_WRITE;
     }
     
     if(errno == EPIPE || errno == ECONNRESET)
     {
+    	DEBUG_INFO ("%s() NOT MBEDTLS_ERR_NET_CONN_RESET!!\n", __FUNCTION__);
       return MBEDTLS_ERR_NET_CONN_RESET;
     }
     
     if(errno == EINTR)
     {
+    	DEBUG_INFO ("%s() NOT MBEDTLS_ERR_SSL_WANT_WRITE!!\n", __FUNCTION__);
       return MBEDTLS_ERR_SSL_WANT_WRITE;
     }
 
+    DEBUG_INFO ("%s() NOT MBEDTLS_ERR_NET_SEND_FAILED!!\n", __FUNCTION__);
     return MBEDTLS_ERR_NET_SEND_FAILED;
   }
 

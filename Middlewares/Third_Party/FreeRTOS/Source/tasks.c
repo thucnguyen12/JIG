@@ -3719,6 +3719,7 @@ static void prvCheckTasksWaitingTermination( void )
 	}
 
 #endif /* INCLUDE_vTaskDelete */
+
 /*-----------------------------------------------------------*/
 
 static void prvResetNextTaskUnblockTime( void )
