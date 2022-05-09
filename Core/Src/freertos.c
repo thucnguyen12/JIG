@@ -542,6 +542,7 @@ void flash_task(void *argument)
 	// Clear led busy & success, set led error
 	HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(LED_DONE_GPIO_Port, LED_DONE_Pin, GPIO_PIN_SET);
+
 	for (;;)
 	{
 		DEBUG_INFO("ENTER flash LOOP\r\n");
@@ -557,6 +558,7 @@ void flash_task(void *argument)
 		//   THRERE NO KEY NOW
 //		DEBUG_INFO("KEY IS PRESSED\r\n");
 		HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LED_DONE_GPIO_Port, LED_DONE_Pin, GPIO_PIN_SET);
 		uint32_t now = xTaskGetTickCount();
 		uint32_t retry = 4;
@@ -577,6 +579,7 @@ void flash_task(void *argument)
 			if (err != ESP_LOADER_SUCCESS)
 			{
 				DEBUG_ERROR("Connect to target failed %d\r\n", err);
+				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
 				continue;
 			}
 			else
@@ -584,7 +587,7 @@ void flash_task(void *argument)
 				DEBUG_INFO("Connected to target %s\r\n", chip_des[m_loader_cfg.target]);
 			}
 			DEBUG_INFO("Change baudrate\r\n");
-			err = esp_loader_change_baudrate(&m_loader_cfg, 115200);
+			err = esp_loader_change_baudrate(&m_loader_cfg, 950400);
 			if (err == ESP_LOADER_ERROR_UNSUPPORTED_FUNC)
 			{
 				DEBUG_ERROR("ESP8266 does not support change baudrate command\r\n");
@@ -595,7 +598,7 @@ void flash_task(void *argument)
 			}
 			else
 			{
-				err = loader_port_change_baudrate(&m_loader_cfg, 115200);
+				err = loader_port_change_baudrate(&m_loader_cfg, 950400);
 				if (err != ESP_LOADER_SUCCESS)
 				{
 					DEBUG_ERROR("Unable to change baud rate\r\n");
@@ -610,30 +613,36 @@ void flash_task(void *argument)
 			if (flash_binary_stm32(&m_loader_cfg, &m_binary.boot) != ESP_LOADER_SUCCESS)
 			{
 				DEBUG_INFO("FLASH BOOTLOADER FAIL \r\n");
-				xEventGroupClearBits(m_button_event_group,
-									BIT_EVENT_GROUP_KEY_0_PRESSED);
+				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
+
+//				xEventGroupClearBits(m_button_event_group,
+//									BIT_EVENT_GROUP_KEY_0_PRESSED);
 				break;
 			}
 
 			DEBUG_INFO("Flash app\r\n");
 			if (flash_binary_stm32(&m_loader_cfg, &m_binary.app) != ESP_LOADER_SUCCESS)
 			{
-				xEventGroupClearBits(m_button_event_group,
-									BIT_EVENT_GROUP_KEY_0_PRESSED);
+				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
+//				xEventGroupClearBits(m_button_event_group,
+//									BIT_EVENT_GROUP_KEY_0_PRESSED);
 				break;
 			}
 
 			DEBUG_INFO("Flash parition table\r\n");
 			if (flash_binary_stm32(&m_loader_cfg, &m_binary.part) != ESP_LOADER_SUCCESS)
 			{
-				xEventGroupClearBits(m_button_event_group,
-									BIT_EVENT_GROUP_KEY_0_PRESSED);
+				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
+//				xEventGroupClearBits(m_button_event_group,
+//									BIT_EVENT_GROUP_KEY_0_PRESSED);
+
 				break;
 			}
 			retry = 0;
-			xEventGroupClearBits(m_button_event_group,
-								BIT_EVENT_GROUP_KEY_0_PRESSED);
+//			xEventGroupClearBits(m_button_event_group,
+//								BIT_EVENT_GROUP_KEY_0_PRESSED);
 			DEBUG_INFO("Total flash write time %us\r\n", (xTaskGetTickCount() - now)/1000);
+			HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(GPIOF, LED_DONE_Pin, GPIO_PIN_RESET);
 			if (led_busy_toggle > 10)
 			{
@@ -645,9 +654,11 @@ void flash_task(void *argument)
 			// Led success on, led busy off
 			HAL_GPIO_WritePin(LED_DONE_GPIO_Port, LED_DONE_Pin, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin((GPIO_TypeDef*)m_loader_cfg.gpio0_trigger_port, m_loader_cfg.gpio0_trigger_pin, GPIO_PIN_SET);
+			DEBUG_INFO ("SET GPIO0 AGAIN \r\n");
 			break;
 		}
-		vTaskDelay(1000);
+		vTaskDelay(portMAX_DELAY);
 	}
 }
 
