@@ -107,7 +107,9 @@ int32_t fatfs_read_file_at_pos(const char *file, uint8_t *data, uint32_t size, u
     fresult = f_lseek(&USERFile, pos);
     if (FR_OK != fresult)
     {
-        DEBUG_ERROR("[1] Seek file %s failed\r\n", file);
+        DEBUG_ERROR("[1] Seek file %s failed, %d\r\n", file, fresult);
+        HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
         f_close(&USERFile);
         goto end;
     }
@@ -115,6 +117,8 @@ int32_t fatfs_read_file_at_pos(const char *file, uint8_t *data, uint32_t size, u
     fresult = f_read(&USERFile, data, size, &byte_read);
     if (FR_OK != fresult)
     {
+    	HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_RESET);
+    	HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
         DEBUG_ERROR("Read file %s failed %d\r\n", file, fresult);
         f_close(&USERFile);
         goto end;

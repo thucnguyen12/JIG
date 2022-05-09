@@ -19,8 +19,9 @@
 #include "serial_io.h"
 #include "esp_loader.h"
 #include "example_common.h"
-
-
+#include <stdbool.h>
+#include "main.h"
+#include "gpio.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -219,6 +220,7 @@ esp_loader_error_t flash_binary_stm32(void *config, partition_attr_t *part)
     uint32_t buffer_size;
     uint8_t *payload = ((esp_loader_config_t*)config)->buffer;
     buffer_size = ((esp_loader_config_t*)config)->buffer_size;
+    bool busy_now = true;
     int last_progress = 0;
     while (retry)
     {
@@ -236,7 +238,7 @@ esp_loader_error_t flash_binary_stm32(void *config, partition_attr_t *part)
         uint32_t addr = part->addr;
         uint32_t tmp_size = part->size;
         size_t written = 0;
-
+        busy_now = true;
         while (tmp_size > 0)
         {
 
@@ -281,13 +283,14 @@ esp_loader_error_t flash_binary_stm32(void *config, partition_attr_t *part)
                 {
                 DEBUG_INFO("Port[%u] Progress: %d %%\r\n", ((esp_loader_config_t*)config)->uart_addr, progress);
                 last_progress = progress;
+                if (busy_now) HAL_GPIO_TogglePin (LED_BUSY_GPIO_Port,LED_BUSY_Pin);
                 }
                 fflush(stdout);
             }
         };
 
         DEBUG_INFO("Port[%u] Finished programming\r\n", ((esp_loader_config_t*)config)->uart_addr);
-
+        busy_now = false;
     #if MD5_ENABLED
         err = esp_loader_flash_verify(config);
         if (err == ESP_LOADER_ERROR_UNSUPPORTED_FUNC)

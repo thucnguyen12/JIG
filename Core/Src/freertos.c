@@ -475,7 +475,7 @@ void flash_task(void *argument)
 {
 	DEBUG_INFO("ENTER flash TASK\r\n");
 	int32_t file_size = 0;
-
+	 GPIO_InitTypeDef GPIO_InitStruct1 = {0};
 	if (m_disk_is_mounted)
 	{
 		file_size = fatfs_read_file(info_file, (uint8_t*)m_file_address, sizeof(m_file_address) - 1);
@@ -557,8 +557,16 @@ void flash_task(void *argument)
 //								portMAX_DELAY);
 		//   THRERE NO KEY NOW
 //		DEBUG_INFO("KEY IS PRESSED\r\n");
+		USART2->CR1 |= (uint32_t)(1<<2);
+		DEBUG_INFO ("RECIEVE ENABLE \r\n");
+		GPIO_InitStruct1.Pin = ESP_EN_Pin|ESP_IO0_Pin;
+		GPIO_InitStruct1.Mode = GPIO_MODE_OUTPUT_PP;
+		GPIO_InitStruct1.Pull = GPIO_NOPULL;
+		GPIO_InitStruct1.Speed = GPIO_SPEED_FREQ_LOW;
+		HAL_GPIO_Init(GPIOC, &GPIO_InitStruct1);
+		DEBUG_INFO ("REINT IO0 \r\n");
 		HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LED_DONE_GPIO_Port, LED_DONE_Pin, GPIO_PIN_SET);
 		uint32_t now = xTaskGetTickCount();
 		uint32_t retry = 4;
@@ -613,8 +621,10 @@ void flash_task(void *argument)
 			if (flash_binary_stm32(&m_loader_cfg, &m_binary.boot) != ESP_LOADER_SUCCESS)
 			{
 				DEBUG_INFO("FLASH BOOTLOADER FAIL \r\n");
-				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
-
+				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
+				vTaskDelay(1000);
+				HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
 //				xEventGroupClearBits(m_button_event_group,
 //									BIT_EVENT_GROUP_KEY_0_PRESSED);
 				break;
@@ -623,7 +633,10 @@ void flash_task(void *argument)
 			DEBUG_INFO("Flash app\r\n");
 			if (flash_binary_stm32(&m_loader_cfg, &m_binary.app) != ESP_LOADER_SUCCESS)
 			{
-				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
+				vTaskDelay(1000);
+				HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
 //				xEventGroupClearBits(m_button_event_group,
 //									BIT_EVENT_GROUP_KEY_0_PRESSED);
 				break;
@@ -632,7 +645,10 @@ void flash_task(void *argument)
 			DEBUG_INFO("Flash parition table\r\n");
 			if (flash_binary_stm32(&m_loader_cfg, &m_binary.part) != ESP_LOADER_SUCCESS)
 			{
-				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
+				vTaskDelay(1000);
+				HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
 //				xEventGroupClearBits(m_button_event_group,
 //									BIT_EVENT_GROUP_KEY_0_PRESSED);
 
@@ -654,11 +670,21 @@ void flash_task(void *argument)
 			// Led success on, led busy off
 			HAL_GPIO_WritePin(LED_DONE_GPIO_Port, LED_DONE_Pin, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
+
+			//// io0 reint
+			GPIO_InitStruct1.Pin = ESP_IO0_Pin;
+			GPIO_InitStruct1.Mode = GPIO_MODE_ANALOG;
+			GPIO_InitStruct1.Pull = GPIO_NOPULL;
+			HAL_GPIO_Init(ESP_IO0_GPIO_Port, &GPIO_InitStruct1);
 			HAL_GPIO_WritePin((GPIO_TypeDef*)m_loader_cfg.gpio0_trigger_port, m_loader_cfg.gpio0_trigger_pin, GPIO_PIN_SET);
-			DEBUG_INFO ("SET GPIO0 AGAIN \r\n");
+			/// end reint
+			DEBUG_INFO ("SET GPIO0 ANALOG MODE \r\n");
+			USART2->CR1 &= (uint32_t)(~(1<<2));
+			DEBUG_INFO ("RE IS DISABLE \r\n");
 			break;
 		}
-		vTaskDelay(portMAX_DELAY);
+		vTaskDelay(45000);
+		DEBUG_INFO ("WAIT 45S DONE \r\n");
 	}
 }
 
