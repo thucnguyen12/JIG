@@ -28,6 +28,14 @@
 #endif
 #include "app_debug.h"
 #include "stdbool.h"
+#include "lwip/init.h"
+#include "lwip/netif.h"
+#include "lwip/timeouts.h"
+#include "netif/etharp.h"
+#include "lwip.h"
+#include "stdio.h"
+#include "app_http.h"
+#include "lwip/dns.h"
 
 extern void Netif_Config (bool restart);
 extern ETH_HandleTypeDef heth;
@@ -48,6 +56,7 @@ bool m_http_test_started = false;
 #endif
 
 /* Private function prototypes -----------------------------------------------*/
+static void dns_initialize(void);
 /* Private functions ---------------------------------------------------------*/
 /**
   * @brief  Notify the User about the network interface config status
@@ -99,31 +108,72 @@ void app_ethernet_notification(struct netif *netif)
   * @retval None
   */
 uint8_t iptxt[32];
+
+bool eth_is_cable_connected(struct netif *netif)
+{
+	uint32_t phyreg = 0;
+	uint32_t err = 0;
+	bool phy_link_status = false;
+	if (HAL_ETH_ReadPHYRegister(&heth, PHY_BSR, &phyreg) == HAL_OK)
+	{
+		phy_link_status = phyreg & PHY_LINKED_STATUS ? 1 : 0;
+		if (phy_link_status == false && m_last_link_up_status != phy_link_status)
+		{
+			DEBUG_INFO("Ethernet disconnected\n", err);
+			m_last_link_up_status = false;
+			return false;
+		}
+		else if (phy_link_status  && (m_last_link_up_status != phy_link_status))
+		{
+			DEBUG_INFO("Ethernet connected\n", err);
+			m_last_link_up_status = true;
+			netif_set_up(netif);
+//            if (DHCP_state == DHCP_OFF)
+//            {
+////            	Netif_Config (false);
+//            }
+//            DEBUG_INFO("Restart DHCP\n", err);
+			DHCP_state = DHCP_START;
+		}
+		else if (!phy_link_status)
+		{
+			DEBUG_VERBOSE("PHY 0x%04X\r\n", phyreg);
+		}
+	}
+	return phy_link_status;
+}
+
 void DHCP_Thread(void const * argument)
 {
+	tcpip_init( NULL, NULL );
+	Netif_Config (false);
+	dns_initialize();
   struct netif *netif = (struct netif *) argument;
   ip_addr_t ipaddr;
   ip_addr_t netmask;
   ip_addr_t gw;
   struct dhcp *dhcp;
-  uint32_t phyreg = 0;
   DEBUG_INFO("DHCP THREAT START \r\n");
-  uint32_t err = 0;
   for (;;)
   {
     switch (DHCP_state)
     {
     case DHCP_START:
-      {
-        ip_addr_set_zero_ip4(&netif->ip_addr);
-        ip_addr_set_zero_ip4(&netif->netmask);
-        ip_addr_set_zero_ip4(&netif->gw);
-
-        uint8_t errtmp =  dhcp_start (netif);
-        DEBUG_INFO ("DHCP START WITH ERR %d",errtmp);
-        DHCP_state = DHCP_WAIT_ADDRESS;
-        DEBUG_INFO ("LOOKING FOR DHCP SEVER \r\n");
-      }
+    {
+	   ip_addr_set_zero_ip4(&netif->ip_addr);
+	   ip_addr_set_zero_ip4(&netif->netmask);
+	   ip_addr_set_zero_ip4(&netif->gw);
+	   if (eth_is_cable_connected(netif))
+	   {
+		DEBUG_INFO ("LOOKING FOR DHCP \r\n");
+		err_t err = dhcp_start (netif);
+		if (err == ERR_OK)
+		{
+			DHCP_state = DHCP_WAIT_ADDRESS;
+			DEBUG_INFO ("LOOKING FOR DHCP SEVER\r\n");
+		}
+	   }
+	 }
       break;
     case DHCP_WAIT_ADDRESS:
       {
@@ -184,27 +234,7 @@ void DHCP_Thread(void const * argument)
     break;
     default: break;
     }
-    if ((err = HAL_ETH_ReadPHYRegister(&heth, PHY_BSR, &phyreg)) != HAL_OK)
-    {
-        DEBUG_INFO("HAL_ETH_ReadPHYRegister error %d\n", err);
-    }
-    else
-    {
-        bool phy_link_status = phyreg & PHY_LINKED_STATUS ? 1 : 0;
-        if (phy_link_status == false && m_last_link_up_status != phy_link_status)
-        {
-            DEBUG_INFO("Ethernet disconnected\n", err);
-
-            m_last_link_up_status = false;
-            DHCP_state = DHCP_LINK_DOWN;
-        }
-        else if (phy_link_status  && (m_last_link_up_status != phy_link_status))
-        {
-            DEBUG_INFO("Ethernet connected\n", err);
-            m_last_link_up_status = true;
-            DHCP_state = DHCP_START;
-        }
-    }
+    eth_is_cable_connected(netif);
     // doi theo PHY
     /* wait 500 ms */
     osDelay(500);
@@ -229,3 +259,13 @@ void DHCP_Thread(void const * argument)
 //  }
 //}
 
+//**************************  DSN APP ******************************/
+static void dns_initialize(void)
+{
+    ip_addr_t dns_server_0 = IPADDR4_INIT_BYTES(8, 8, 8, 8);
+    ip_addr_t dns_server_1 = IPADDR4_INIT_BYTES(1, 1, 1, 1);
+    dns_setserver(0, &dns_server_0);
+    dns_setserver(1, &dns_server_1);
+    dns_init();
+}
+//******************************************************************//

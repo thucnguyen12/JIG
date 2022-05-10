@@ -170,7 +170,7 @@ static void on_btn_hold_so_long(int index, int event, void * pData);
 /***************  ETHERNET PFP      ****************************/
 void Netif_Config (bool restart);
 void net_task(void *argument);
-static void dns_initialize(void);
+
 /**************************************************************/
 
 /*****************        TASK PFP                *************/
@@ -350,12 +350,7 @@ void StartDefaultTask(void const * argument)
 //  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
 //  }
 #if LWIP_DHCP
-  HAL_GPIO_WritePin (W_ENET_RST_GPIO_Port, W_ENET_RST_Pin, GPIO_PIN_RESET);
-  osDelay(10);
-  HAL_GPIO_WritePin (W_ENET_RST_GPIO_Port, W_ENET_RST_Pin, GPIO_PIN_SET);
-    tcpip_init( NULL, NULL );
-    Netif_Config (false);
-    dns_initialize();
+
 //	  /* Start DHCPClient */
 
 	  osThreadDef(DHCP, DHCP_Thread, 2, 0, configMINIMAL_STACK_SIZE * 2);
@@ -866,15 +861,6 @@ static void on_btn_hold_so_long(int index, int event, void * pData)
 }
 /*******************************************************************/
 
-//**************************  DSN APP ******************************/
-static void dns_initialize(void)
-{
-    ip_addr_t dns_server_0 = IPADDR4_INIT_BYTES(8, 8, 8, 8);
-    ip_addr_t dns_server_1 = IPADDR4_INIT_BYTES(1, 1, 1, 1);
-    dns_setserver(0, &dns_server_0);
-    dns_setserver(1, &dns_server_1);
-    dns_init();
-}
-//******************************************************************//
+
 /* USER CODE END Application */
 
