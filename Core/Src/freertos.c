@@ -285,9 +285,7 @@ void StartDefaultTask(void const * argument)
 
 //  m_button_event_group = xEventGroupCreate(); //>>>>>>> CREATE BUTTON EVENT VAR
          ////init lwip
-//  tcpip_init( NULL, NULL );
-//  Netif_Config (false);
-//  dns_initialize();
+
 
 //*************************** INIT BUTTON APP**********************//
 //  app_btn_config_t btn_conf;
@@ -336,27 +334,33 @@ void StartDefaultTask(void const * argument)
 	f_setlabel("BSAFE JIG");
   }
 /************************************************************/
-  tusb_init ();
-  // Create CDC task
-  (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
+
   // Create flashtask
-  if (m_task_connect_handle == NULL)
-  {
-	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 0, &m_task_connect_handle);// pio =1
-  }
+//  if (m_task_connect_handle == NULL)
+//  {
+//	  xTaskCreate(flash_task, "flash_task", 4096, NULL, 3, &m_task_connect_handle);// pio =1
+//  }
   if (m_USB_handle == NULL)
 	{
-	  xTaskCreate(usb_task, "usb_task", 1024, NULL, 0, &m_USB_handle);// pio =1
+	  xTaskCreate(usb_task, "usb_task", 1024, NULL, 4, &m_USB_handle);// pio =1
 	}
+
 //  if (m_task_handle_protocol == NULL)
 //  {
 //  	  xTaskCreate(net_task, "net_task", 4096, NULL, 0, &m_task_handle_protocol);
 //  }
-//#if LWIP_DHCP
+#if LWIP_DHCP
+  HAL_GPIO_WritePin (W_ENET_RST_GPIO_Port, W_ENET_RST_Pin, GPIO_PIN_RESET);
+  osDelay(10);
+  HAL_GPIO_WritePin (W_ENET_RST_GPIO_Port, W_ENET_RST_Pin, GPIO_PIN_SET);
+    tcpip_init( NULL, NULL );
+    Netif_Config (false);
+    dns_initialize();
 //	  /* Start DHCPClient */
-//	  osThreadDef(DHCP, DHCP_Thread, osPriorityBelowNormal, 0, configMINIMAL_STACK_SIZE * 2);
-//	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
-//#endif
+
+	  osThreadDef(DHCP, DHCP_Thread, 2, 0, configMINIMAL_STACK_SIZE * 2);
+	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
+#endif
   /* Infinite loop */
   for(;;)
   {
@@ -385,7 +389,14 @@ uint32_t cdc_tx(const void *buffer, uint32_t size)
 void usb_task (void* params)
 {
 	DEBUG_INFO ("USB TASK\r\n");
-	tud_task();
+	  tusb_init ();
+	  // Create CDC task
+	  (void) xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, 1, cdc_stack, &cdc_taskdef);// pio =2
+
+	while (1)
+	{
+		tud_task();
+	}
 }
 void cdc_task(void* params)
 {
@@ -476,6 +487,11 @@ void flash_task(void *argument)
 	DEBUG_INFO("ENTER flash TASK\r\n");
 	int32_t file_size = 0;
 	 GPIO_InitTypeDef GPIO_InitStruct1 = {0};
+	 while (!m_disk_is_mounted)
+	 {
+		 vTaskDelay(100);
+	 }
+
 	if (m_disk_is_mounted)
 	{
 		file_size = fatfs_read_file(info_file, (uint8_t*)m_file_address, sizeof(m_file_address) - 1);

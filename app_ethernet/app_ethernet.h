@@ -49,7 +49,7 @@
 #define IP_ADDR0   ((uint8_t) 192U)
 #define IP_ADDR1   ((uint8_t) 168U)
 #define IP_ADDR2   ((uint8_t) 1U)
-#define IP_ADDR3   ((uint8_t) 45U)
+#define IP_ADDR3   ((uint8_t) 95U)
 
 /*NETMASK*/
 #define NETMASK_ADDR0   ((uint8_t) 255U)

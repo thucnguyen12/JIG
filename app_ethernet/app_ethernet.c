@@ -39,7 +39,7 @@ extern ETH_HandleTypeDef heth;
 uint32_t EthernetLinkTimer;
 
 #if LWIP_DHCP
-#define MAX_DHCP_TRIES  4
+#define MAX_DHCP_TRIES  100
 uint32_t DHCPfineTimer = 0;
 uint8_t DHCP_state = DHCP_OFF;
 bool m_last_link_up_status = false;
@@ -119,7 +119,8 @@ void DHCP_Thread(void const * argument)
         ip_addr_set_zero_ip4(&netif->netmask);
         ip_addr_set_zero_ip4(&netif->gw);
 
-        dhcp_start (netif);
+        uint8_t errtmp =  dhcp_start (netif);
+        DEBUG_INFO ("DHCP START WITH ERR %d",errtmp);
         DHCP_state = DHCP_WAIT_ADDRESS;
         DEBUG_INFO ("LOOKING FOR DHCP SEVER \r\n");
       }
@@ -129,6 +130,7 @@ void DHCP_Thread(void const * argument)
     	  DEBUG_INFO ("WAITING DHCP SEVER \r\n");
         if (dhcp_supplied_address(netif))
         {
+        	dhcp->tries++;
           DHCP_state = DHCP_ADDRESS_ASSIGNED;
           DEBUG_INFO("IP address assigned by a DHCP server %s\r\n", ip4addr_ntoa(netif_ip4_addr(netif)));
 //          xSemaphoreGive(hHttpStart);
@@ -137,7 +139,7 @@ void DHCP_Thread(void const * argument)
         else
         {
           dhcp = (struct dhcp *)netif_get_client_data(netif, LWIP_NETIF_CLIENT_DATA_INDEX_DHCP);
-
+          dhcp->tries++;
           /* DHCP timeout */
           if (dhcp->tries > MAX_DHCP_TRIES)
           {
@@ -182,25 +184,27 @@ void DHCP_Thread(void const * argument)
     break;
     default: break;
     }
-//    if ((err = HAL_ETH_ReadPHYRegister(&heth, DP83848_PHY_ADDRESS, PHY_BSR, &phyreg)) != HAL_OK)
-//    {
-//        DEBUG_INFO("HAL_ETH_ReadPHYRegister error %d\n", err);
-//    }
-//    else
-//    {
-//        bool phy_link_status = phyreg & PHY_LINKED_STATUS ? 1 : 0;
-//        if (phy_link_status == false && m_last_link_up_status != phy_link_status)
-//        {
-//            DEBUG_INFO("Ethernet disconnected\n", err);
-//            m_last_link_up_status = false;
-//        }
-//        else if (phy_link_status  && (m_last_link_up_status != phy_link_status))
-//        {
-//            DEBUG_INFO("Ethernet connected\n", err);
-//            m_last_link_up_status = true;
-//            DHCP_state = DHCP_START;
-//        }
-//    }
+    if ((err = HAL_ETH_ReadPHYRegister(&heth, PHY_BSR, &phyreg)) != HAL_OK)
+    {
+        DEBUG_INFO("HAL_ETH_ReadPHYRegister error %d\n", err);
+    }
+    else
+    {
+        bool phy_link_status = phyreg & PHY_LINKED_STATUS ? 1 : 0;
+        if (phy_link_status == false && m_last_link_up_status != phy_link_status)
+        {
+            DEBUG_INFO("Ethernet disconnected\n", err);
+
+            m_last_link_up_status = false;
+            DHCP_state = DHCP_LINK_DOWN;
+        }
+        else if (phy_link_status  && (m_last_link_up_status != phy_link_status))
+        {
+            DEBUG_INFO("Ethernet connected\n", err);
+            m_last_link_up_status = true;
+            DHCP_state = DHCP_START;
+        }
+    }
     // doi theo PHY
     /* wait 500 ms */
     osDelay(500);
