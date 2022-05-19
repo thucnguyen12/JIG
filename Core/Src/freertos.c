@@ -58,6 +58,7 @@
 #include "ringBuffer.h"
 #include "adc.h"
 #include "sntp.h"
+#include "rtc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -305,7 +306,12 @@ typedef struct
 	// ******************** RING BUFFER********************************//
 	uint8_t rs485ringBuffer [6144];
 	lwrb_t m_ringbuffer_rs485_rx;
-	//******************************************************************//
+//******************************************************************//
+//************************** RTC VAR*******************************//
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+  RTC_HandleTypeDef hrtc1;
+//********************************************************************//
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 
@@ -342,7 +348,12 @@ bool RS232_tx (void *ctx, uint8_t byte);
 void Get_sim_imei(jig_value_t * value, char *sim_imei);
 void Get_gsm_imei(jig_value_t * value, char *gsm_imei);
 void Get_MAC(jig_value_t * value, uint8_t *MAC);
-//************************************
+//*******************************************//
+
+// ********************* RTC PFP****************//
+void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate);
+
+//*************************************************//
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -1645,6 +1656,7 @@ void lwip_sntp_recv_cb (uint32_t time)
 	}
 	else
 	{
+//		reInitRTC()
 		DEBUG_INFO (" GOT TIME : it's been %u sencond from last time", time);
 	}
 }
@@ -1662,6 +1674,49 @@ static void initialize_stnp(void)
 }
 
 //************************************************************************//
+// ************************* TIME RTC*********************************//
+void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate)
+{
+	  /** Initialize RTC Only
+	  */
+	  hrtc1.Instance = RTC;
+	  hrtc1.Init.HourFormat = RTC_HOURFORMAT_24;
+	  hrtc1.Init.AsynchPrediv = 127;
+	  hrtc1.Init.SynchPrediv = 255;
+	  hrtc1.Init.OutPut = RTC_OUTPUT_DISABLE;
+	  hrtc1.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+	  hrtc1.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+	  if (HAL_RTC_Init(&hrtc1) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+
+	  /* USER CODE BEGIN Check_RTC_BKUP */
+
+	  /* USER CODE END Check_RTC_BKUP */
+
+	  /** Initialize RTC and set the Time and Date
+	  */
+//	  sTime.Hours = 0x0;
+//	  sTime.Minutes = 0x0;
+//	  sTime.Seconds = 0x0;
+//	  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+//	  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+	  if (HAL_RTC_SetTime(&hrtc1, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+//	  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+//	  sDate.Month = RTC_MONTH_JANUARY;
+//	  sDate.Date = 0x12;
+//	  sDate.Year = 0x0;
+
+	  if (HAL_RTC_SetDate(&hrtc1, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+}
+//*****************************************************************//
 //*********************** json encode*********************************//
 int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 {
