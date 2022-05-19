@@ -51,7 +51,7 @@ uint32_t EthernetLinkTimer;
 uint32_t DHCPfineTimer = 0;
 uint8_t DHCP_state = DHCP_OFF;
 bool m_last_link_up_status = false;
-static bool m_ip_assigned = false;
+bool m_ip_assigned = false;
 bool m_http_test_started = false;
 #endif
 

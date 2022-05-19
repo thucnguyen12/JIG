@@ -337,6 +337,9 @@ httpc_tcp_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t r)
   }
   if ((p != NULL) && (req->parse_state == HTTPC_PARSE_RX_DATA)) {
     req->rx_content_len += p->tot_len;
+      // HuyTV
+    req->timeout_ticks = HTTPC_POLL_TIMEOUT;
+      // End
     if (req->recv_fn != NULL) {
       /* directly return here: the connection migth already be aborted from the callback! */
       return req->recv_fn(req->callback_arg, pcb, p, r);
@@ -383,9 +386,35 @@ static err_t
 httpc_tcp_sent(void *arg, struct altcp_pcb *pcb, u16_t len)
 {
   /* nothing to do here for now */
-  LWIP_UNUSED_ARG(arg);
-  LWIP_UNUSED_ARG(pcb);
-  LWIP_UNUSED_ARG(len);
+    LWIP_DEBUGF(HTTPC_DEBUG, ("HTTP sent %u bytes\r\n", len));
+    LWIP_UNUSED_ARG(arg);
+    LWIP_UNUSED_ARG(pcb);
+    LWIP_UNUSED_ARG(len);
+    httpc_state_t* req = (httpc_state_t*)arg;
+    if (req->conn_settings->method == HTTP_METHOD_POST)
+    {
+        uint8_t *post_data;
+        uint16_t post_len = 0;
+        req->conn_settings->on_post_body_cb(req, req->callback_arg, &post_data, &post_len);
+        if (post_len)
+        {
+              err_t r;
+              LWIP_DEBUGF(HTTPC_DEBUG, ("HTTP write more\r\n"));
+            
+              /* send request; last char is zero termination */
+              r = altcp_write(req->pcb, post_data, post_len, TCP_WRITE_FLAG_COPY);
+              if (r != ERR_OK) 
+              {
+                 /* could not write the single small request -> fail, don't retry */
+                 return httpc_close(req, HTTPC_RESULT_ERR_MEM, 0, r);
+              }
+//              /* everything written, we can free the request */
+//              pbuf_free(req->request);
+//              req->request = NULL;
+
+              return altcp_output(req->pcb);
+        }
+    }
   return ERR_OK;
 }
 
@@ -397,7 +426,7 @@ httpc_tcp_connected(void *arg, struct altcp_pcb *pcb, err_t err)
   httpc_state_t* req = (httpc_state_t*)arg;
   LWIP_UNUSED_ARG(pcb);
   LWIP_UNUSED_ARG(err);
-
+    LWIP_DEBUGF(HTTPC_DEBUG, ("HTTP connected\r\n"));
   /* send request; last char is zero termination */
   r = altcp_write(req->pcb, req->request->payload, req->request->len - 1, TCP_WRITE_FLAG_COPY);
   if (r != ERR_OK) {
@@ -408,8 +437,7 @@ httpc_tcp_connected(void *arg, struct altcp_pcb *pcb, err_t err)
   pbuf_free(req->request);
   req->request = NULL;
 
-  altcp_output(req->pcb);
-  return ERR_OK;
+  return altcp_output(req->pcb);
 }
 
 /** Start the http request when the server IP addr is known */
@@ -905,5 +933,150 @@ httpc_get_file_dns_to_disk(const char* server_name, u16_t port, const char* uri,
   return ERR_OK;
 }
 #endif /* LWIP_HTTPC_HAVE_FILE_IO */
+
+// HuyTV
+
+/* GET request with host */
+#define HTTPC_POST_11_HOST "POST %s HTTP/1.1\r\n" /* URI */\
+    "User-Agent: %s\r\n" /* User-Agent */ \
+    "Accept: */*\r\n" \
+    "Host: %s\r\n" /* server name */ \
+    "Content-Length: %d\r\n"    /* Content length */\
+    "Connection: Close\r\n" /* we don't support persistent connections, yet */ \
+    "\r\n"
+#define HTTPC_POST_11_HOST_FORMAT(uri, srv_name, content_len) HTTPC_POST_11_HOST, uri, HTTPC_CLIENT_AGENT, srv_name, content_len
+
+static int
+httpc_post_create_request_string(const httpc_connection_t *settings, const char* server_name, int server_port, const char* uri,
+                            int use_host, char *buffer, size_t buffer_size, int content_length)
+{
+    LWIP_ASSERT("server_name != NULL", server_name != NULL);
+    return snprintf(buffer, buffer_size, HTTPC_POST_11_HOST_FORMAT(uri, server_name, content_length));
+}
+
+
+/** Initialize the connection struct */
+static err_t
+httpc_post_init_connection_common(httpc_state_t **connection, const httpc_connection_t *settings, const char* server_name,
+                      u16_t server_port, const char* uri, altcp_recv_fn recv_fn, void* callback_arg, int use_host, int content_length)
+{
+  size_t alloc_len;
+  mem_size_t mem_alloc_len;
+  int req_len, req_len2;
+  httpc_state_t *req;
+#if HTTPC_DEBUG_REQUEST
+  size_t server_name_len, uri_len;
+#endif
+
+  LWIP_ASSERT("uri != NULL", uri != NULL);
+
+  /* get request len */
+  req_len = httpc_post_create_request_string(settings, server_name, server_port, uri, use_host, NULL, 0, content_length);
+  if ((req_len < 0) || (req_len > 0xFFFF)) {
+    return ERR_VAL;
+  }
+  /* alloc state and request in one block */
+  alloc_len = sizeof(httpc_state_t);
+#if HTTPC_DEBUG_REQUEST
+  server_name_len = server_name ? strlen(server_name) : 0;
+  uri_len = strlen(uri);
+  alloc_len += server_name_len + 1 + uri_len + 1;
+#endif
+  mem_alloc_len = (mem_size_t)alloc_len;
+  if ((mem_alloc_len < alloc_len) || (req_len + 1 > 0xFFFF)) {
+    return ERR_VAL;
+  }
+
+  req = (httpc_state_t*)mem_malloc((mem_size_t)alloc_len);
+  if(req == NULL) {
+    return ERR_MEM;
+  }
+  memset(req, 0, sizeof(httpc_state_t));
+  req->timeout_ticks = HTTPC_POLL_TIMEOUT;
+  req->request = pbuf_alloc(PBUF_RAW, (u16_t)(req_len + 1), PBUF_RAM);
+  if (req->request == NULL) {
+    httpc_free_state(req);
+    return ERR_MEM;
+  }
+  if (req->request->next != NULL) {
+    /* need a pbuf in one piece */
+    httpc_free_state(req);
+    return ERR_MEM;
+  }
+  req->hdr_content_len = HTTPC_CONTENT_LEN_INVALID;
+#if HTTPC_DEBUG_REQUEST
+  req->server_name = (char*)(req + 1);
+  if (server_name) {
+    memcpy(req->server_name, server_name, server_name_len + 1);
+  }
+  req->uri = req->server_name + server_name_len + 1;
+  memcpy(req->uri, uri, uri_len + 1);
+#endif
+  req->pcb = altcp_new(settings->altcp_allocator);
+  if(req->pcb == NULL) {
+    httpc_free_state(req);
+    return ERR_MEM;
+  }
+  req->remote_port = settings->use_proxy ? settings->proxy_port : server_port;
+  altcp_arg(req->pcb, req);
+  altcp_recv(req->pcb, httpc_tcp_recv);
+  altcp_err(req->pcb, httpc_tcp_err);
+  altcp_poll(req->pcb, httpc_tcp_poll, HTTPC_POLL_INTERVAL);
+  altcp_sent(req->pcb, httpc_tcp_sent);
+
+  /* set up request buffer */
+  req_len2 = httpc_post_create_request_string(settings, server_name, server_port, uri, use_host,
+    (char *)req->request->payload, req_len + 1, content_length);
+  
+  if (req_len2 != req_len) {
+    httpc_free_state(req);
+    return ERR_VAL;
+  }
+    
+  req->recv_fn = recv_fn;
+  req->conn_settings = settings;
+  req->callback_arg = callback_arg;
+
+  *connection = req;
+  return ERR_OK;
+}
+
+static err_t
+httpc_post_init_connection(httpc_state_t **connection, const httpc_connection_t *settings, const char* server_name,
+                      u16_t server_port, const char* uri, altcp_recv_fn recv_fn, void* callback_arg, int content_length)
+{
+  return httpc_post_init_connection_common(connection, settings, server_name, server_port, uri, recv_fn, callback_arg, 1, content_length);
+}
+
+err_t
+httpc_post_file_dns(const char* server_name, u16_t port, const char* uri, const httpc_connection_t *settings,
+                   altcp_recv_fn recv_fn, void* callback_arg, httpc_state_t **connection, int content_length)
+{
+  err_t err;
+  httpc_state_t* req;
+
+  LWIP_ERROR("invalid parameters", (server_name != NULL) && (uri != NULL) && (recv_fn != NULL), return ERR_ARG;);
+
+  err = httpc_post_init_connection(&req, settings, server_name, port, uri, recv_fn, callback_arg, content_length);
+  if (err != ERR_OK) {
+    return err;
+  }
+
+  if (settings->use_proxy) {
+    err = httpc_get_internal_addr(req, &settings->proxy_addr);
+  } else {
+    err = httpc_get_internal_dns(req, server_name);
+  }
+  if(err != ERR_OK) {
+    httpc_free_state(req);
+    return err;
+  }
+
+  if (connection != NULL) {
+    *connection = req;
+  }
+  return ERR_OK;
+}
+
 
 #endif /* LWIP_TCP && LWIP_CALLBACK_API */

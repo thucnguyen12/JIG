@@ -66,6 +66,8 @@ extern "C" {
  * The default TCP port used for HTTP
  */
 #define HTTP_DEFAULT_PORT         LWIP_IANA_PORT_HTTP
+#define HTTP_METHOD_GET           0x00
+#define HTTP_METHOD_POST          0x01
 
 /**
  * @ingroup httpc 
@@ -122,6 +124,10 @@ typedef void (*httpc_result_fn)(void *arg, httpc_result_t httpc_result, u32_t rx
  */
 typedef err_t (*httpc_headers_done_fn)(httpc_state_t *connection, void *arg, struct pbuf *hdr, u16_t hdr_len, u32_t content_len);
 
+// HuyTV
+typedef err_t (*httpc_on_post_data_write_next_cb_fn)(httpc_state_t *connection, void *arg, uint8_t **buffer, uint16_t *len);
+typedef err_t (*httpc_post_received_response_cb_fn)(httpc_state_t *connection, void *arg, int status_code);
+
 typedef struct _httpc_connection {
   ip_addr_t proxy_addr;
   u16_t proxy_port;
@@ -137,6 +143,11 @@ typedef struct _httpc_connection {
   /* this callback is called after receiving the http headers
      It can abort the connection by returning != ERR_OK */
   httpc_headers_done_fn headers_done_fn;
+    
+  // HuyTV
+    uint8_t method;
+    httpc_on_post_data_write_next_cb_fn on_post_body_cb;
+    httpc_post_received_response_cb_fn on_post_complete_cb;
 } httpc_connection_t;
 
 err_t httpc_get_file(const ip_addr_t* server_addr, u16_t port, const char* uri, const httpc_connection_t *settings,
@@ -150,6 +161,11 @@ err_t httpc_get_file_to_disk(const ip_addr_t* server_addr, u16_t port, const cha
 err_t httpc_get_file_dns_to_disk(const char* server_name, u16_t port, const char* uri, const httpc_connection_t *settings,
                      void* callback_arg, const char* local_file_name, httpc_state_t **connection);
 #endif /* LWIP_HTTPC_HAVE_FILE_IO */
+
+// HuyTV
+err_t
+httpc_post_file_dns(const char* server_name, u16_t port, const char* uri, const httpc_connection_t *settings,
+                   altcp_recv_fn recv_fn, void* callback_arg, httpc_state_t **connection, int content_length);
 
 #ifdef __cplusplus
 }

@@ -952,7 +952,7 @@ void net_task(void *argument)
 		 }
 #if 1
 	// http://httpbin.org/get
-	jig_value_t* rev_jig_value;
+	jig_value_t* rev_jig_value = NULL;
 	uint16_t len;
 	for (;;)
 	{
