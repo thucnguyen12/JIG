@@ -182,8 +182,9 @@ void DHCP_Thread(void const * argument)
         {
         	dhcp->tries++;
           DHCP_state = DHCP_ADDRESS_ASSIGNED;
-          DEBUG_INFO("IP address assigned by a DHCP server %s\r\n", ip4addr_ntoa(netif_ip4_addr(netif)));
+          DEBUG_WARN ("IP address assigned by a DHCP server %s\r\n", ip4addr_ntoa(netif_ip4_addr(netif)));
 //          xSemaphoreGive(hHttpStart);
+          m_ip_assigned = true;
           m_http_test_started = false;
         }
         else

@@ -77,7 +77,7 @@
 #define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE
 #define USB_CDC_TX_RING_BUFFER_SIZE		1024
 
-#define TIMEOUT 5000
+#define TIMEOUT 60000
 
 /* USER CODE END PTD */
 
@@ -268,11 +268,11 @@ typedef struct
 	char sim_imei[16];
 	uint8_t MAC[6]={0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	uint8_t lastMAC[6]={0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-	jig_value_t *rx_value;
-	jig_value_t *to_send_value;
+	static jig_value_t *rx_value;
+	static jig_value_t *to_send_value;
 	jig_peripheral_t jig_result;
 	bool get_jig_info = false;
-	func_test_t test_res;
+	static func_test_t test_res;
 	bool allPassed = false;
 	static const char *test_info_file = "test_info.txt";
 	char json_send_to_sever[1024];
@@ -492,7 +492,7 @@ void StartDefaultTask(void const * argument)
 	vTaskDelay(500);
 //******************************************//
   // Create flashtask
-	 httpQueue = xQueueCreate (1, sizeof (jig_value_t));
+	 httpQueue = xQueueCreate (1, sizeof(uint32_t));
   if (m_USB_handle == NULL)
 	{
 	  xTaskCreate(usb_task, "usb_task", 1024, NULL, 4, &m_USB_handle);// pio =1
@@ -950,9 +950,10 @@ void net_task(void *argument)
 		 {
 			 vTaskDelay(100);
 		 }
+	DEBUG_WARN ("GOT IP START TO SEND!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
 #if 1
 	// http://httpbin.org/get
-	jig_value_t* rev_jig_value = NULL;
+	jig_value_t* rev_jig_value;
 	uint16_t len;
 	for (;;)
 	{
@@ -960,19 +961,21 @@ void net_task(void *argument)
 //		{
 //			osDelay (10);
 //		}
-			xQueueReceive(httpQueue, rev_jig_value, portMAX_DELAY);
-			DEBUG_INFO ("GOT THE QUEUE \r\n");
+			xQueueReceive(httpQueue, &rev_jig_value, portMAX_DELAY);
+			DEBUG_WARN ("GOT THE QUEUE \r\n");
 			len = json_build (rev_jig_value, &(rev_jig_value->test_result), json_send_to_sever);
 			vPortFree(rev_jig_value);
+
 			DEBUG_INFO ("%s", json_send_to_sever);
 			m_http_test_started = true;
 			app_http_config_t http_cfg;
-			sprintf(http_cfg.url, "%s", "192.168.1.2");
+			sprintf(http_cfg.url, "%s", "192.168.1.3");
 			http_cfg.port = 80;
 			sprintf(http_cfg.file, "%s", "/t.txt");
 			http_cfg.on_event_cb = (void*)0;
 			http_cfg.method = APP_HTTP_POST;
 			trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+			DEBUG_INFO ("SEND");
 			app_http_start(&http_cfg,  (int)len);
 			osDelay(100);
 	}
@@ -1493,7 +1496,7 @@ void testing_task (void *arg)
 				memcpy (buff_jig_var->sim_imei, to_send_value->sim_imei, 16);
 				buff_jig_var->peripheral.value = to_send_value->peripheral.value;
 				buff_jig_var->test_result.value = test_res.value;
-				xQueueSend (httpQueue, buff_jig_var, 0);
+				xQueueSend (httpQueue, &buff_jig_var, 0);
 				DEBUG_WARN ("READY TO SEND TO SEVER \r\n");
 			}
 			if ((now - last_tick) > 500 )
@@ -1644,9 +1647,9 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 //	sprintf (json_str_buff, "\"day test\": %d:%d:%d,\r\n", 			day, month, year);
 //	strcat (json_str, json_strbuff);
 	index += sprintf (json_str+index, "[{\r\n\"DeviceType\":\"%s\",\r\n", 			value ->device_type ? "B02":"B01");
-	index += sprintf (json_str+index, "\"firmwareVersion\":\"%d.%d.%d\",\r\n",value ->fw_version[0],value ->fw_version[1],value ->fw_version[2] );
-	index += sprintf (json_str+index, "\"hardwareVersion\":\"%d.%d.%d\",\r\n",value ->hw_version[0],value ->hw_version[1],value ->hw_version[2] );
-	index += sprintf (json_str+index, "\"gsmIMEI\":\"%s\",\r\n", 				value ->gsm_imei);
+	index += sprintf (json_str+index, "\"FirmwareVersion\":\"%d.%d.%d\",\r\n",value ->fw_version[0],value ->fw_version[1],value ->fw_version[2] );
+	index += sprintf (json_str+index, "\"HardwardVersion\":\"%d.%d.%d\",\r\n",value ->hw_version[0],value ->hw_version[1],value ->hw_version[2] );
+	index += sprintf (json_str+index, "\"GsmIMEI\":\"%s\",\r\n", 				value ->gsm_imei);
 	sprintf (mac_str, "%02x:%02x:%02x:%02x:%02x:%02x",	value->mac[0],
 														value->mac[1],
 														value->mac[2],
@@ -1654,7 +1657,7 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 														value->mac[4],
 														value->mac[5]);
 //	make_string_from_mac (mac_str);
-	index += sprintf (json_str+index, "\"mac\":\"%s\"\r\n", 						mac_str);
+	index += sprintf (json_str+index, "\"MacJIG\":\"%s\",\r\n", 						mac_str);
 	index += sprintf (json_str+index, "\"ErrorResults\":{\r\n");
 	index += sprintf (json_str+index, "\"sim\":%s,\r\n", 						test->result.sim_ok ? "true" : "false");
 	index += sprintf (json_str+index, "\"vGsm4V2\":%s,\r\n", 					test ->result.vgsm4v2_ok ? "true" : "false");
@@ -1666,7 +1669,7 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 	index += sprintf (json_str+index, "\"mainPower\":%s,\r\n", 					value ->peripheral.name.main_power_pass ? "true" : "false");
 	index += sprintf (json_str+index, "\"backupPower\":%s,\r\n", 				value ->peripheral.name.backup_power_pass? "true" : "false");
 	index += sprintf (json_str+index, "\"buttonTest\":%s,\r\n", 				value ->peripheral.name.button_pass? "true" : "false");
-	index += sprintf (json_str+index, "\"input\":[%s,%s,%s,%s], \r\n",			value->peripheral.name.input0_pass ? "true" : "false",\
+	index += sprintf (json_str+index, "\"input\":[%s,%s,%s,%s],\r\n",			value->peripheral.name.input0_pass ? "true" : "false",\
 																				value->peripheral.name.input1_pass ? "true" : "false",\
 																				value->peripheral.name.input2_pass ? "true" : "false",\
 																				value->peripheral.name.input3_pass ? "true" : "false");
@@ -1684,7 +1687,7 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 	index += sprintf (json_str+index, "\"v3v3\":%s,\r\n", 						test->result.v3v3_ok? "true" : "false");
 	index += sprintf (json_str+index, "\"v5v\":%s,\r\n", 						test->result.v5v_ok? "true" : "false");
 	index += sprintf (json_str+index, "\"vsys\":%s,\r\n", 						test->result.vsys_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"allPassed\":%s\r\n  }\r\n }\r\n}]", 	allPassed? "true" : "false");
+	index += sprintf (json_str+index, "\"allPassed\":%s\r\n  }\r\n}]", 	allPassed? "true" : "false");
 	return index;
 }
 //********************************************************************//
