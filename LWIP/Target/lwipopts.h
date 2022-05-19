@@ -119,7 +119,8 @@
 #define CHECKSUM_CHECK_ICMP6 0
 /*-----------------------------------------------------------------------------*/
 /* USER CODE BEGIN 1 */
-
+extern void lwip_sntp_recv_cb (uint32_t time);
+#define SNTP_SET_SYSTEM_TIME lwip_sntp_recv_cb;
 /* USER CODE END 1 */
 
 #ifdef __cplusplus

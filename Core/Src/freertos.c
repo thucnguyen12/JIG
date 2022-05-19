@@ -57,6 +57,7 @@
 #include "min_id.h"
 #include "ringBuffer.h"
 #include "adc.h"
+#include "sntp.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -285,6 +286,14 @@ typedef struct
 	uint16_t ADCScan[6];
 	uint8_t idle_detect;
 //*****************************************************************************//
+
+//************************* TIME PROTOCOL PRO AND VAR***********************************//
+	void lwip_sntp_recv_cb (uint32_t time);
+//****************************************************************************
+//********************** user name and pwd of wifi **************************//
+	static char UserName[32];
+	static char PassWord[32];
+	//*********************************************************************//
 
 //********************************* MIN PROTOCOL VAR**********************//
 	lwrb_t m_ringbuffer_host_rx;
@@ -950,7 +959,7 @@ void net_task(void *argument)
 		 {
 			 vTaskDelay(100);
 		 }
-	DEBUG_WARN ("GOT IP START TO SEND!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
+//	DEBUG_WARN ("GOT IP START TO SEND!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
 #if 1
 	// http://httpbin.org/get
 	jig_value_t* rev_jig_value;
@@ -1327,6 +1336,7 @@ void testing_task (void *arg)
 				ptr+=strlen("\"vsys_min\":");
 				voltage_info.vsys_min = utilities_get_number_from_string (0, ptr);
 			}
+#warning "viet them ham tim ten va mat khau wifi"
 			DEBUG_INFO ("%d < vbat < %d (mV) \r\n", voltage_info.vbat_min, voltage_info.vbat_max);
 			DEBUG_INFO ("%d < v5v < %d (mV) \r\n", voltage_info.v5v_min, voltage_info.v5v_max);
 			DEBUG_INFO ("%d < v1v8 < %d (mV) \r\n", voltage_info.v1v8_min, voltage_info.v1v8_max);
@@ -1626,18 +1636,33 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 }
 //********************************************************************//
 
+// **************************** TIME PROTOCOL ***************************//
+void lwip_sntp_recv_cb (uint32_t time)
+{
+	if (time == 0)
+	{
+		DEBUG_INFO ("NTP ERROR \r\n");
+	}
+	else
+	{
+		DEBUG_INFO (" GOT TIME : it's been %u sencond from last time", time);
+	}
+}
+static void initialize_stnp(void)
+{
+    static bool sntp_start = false;
+    if (sntp_start == false)
+    {
+        sntp_start = true;
+        DEBUG_INFO("Initialize stnp\r\n");
+        sntp_setoperatingmode(SNTP_OPMODE_POLL);
+        sntp_setservername(0, "pool.ntp.org");
+        sntp_init();
+    }
+}
 
-
+//************************************************************************//
 //*********************** json encode*********************************//
-//void make_string_from_mac(char *str)
-//{
-//	sprintf (str,"%02x:%02x:%02x:%02x:%02x:%02x",rx_value->mac[0],
-//												 rx_value->mac[1],
-//												 rx_value->mac[2],
-//												 rx_value->mac[3],
-//												 rx_value->mac[4],
-//												 rx_value->mac[5]);
-//}
 int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 {
 	char mac_str[18];
