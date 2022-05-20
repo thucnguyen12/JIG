@@ -128,11 +128,84 @@ bool eth_is_cable_connected(struct netif *netif)
 			DEBUG_INFO("Ethernet connected\n", err);
 			m_last_link_up_status = true;
 			netif_set_up(netif);
-//            if (DHCP_state == DHCP_OFF)
-//            {
-////            	Netif_Config (false);
-//            }
-//            DEBUG_INFO("Restart DHCP\n", err);
+//			  __IO uint32_t tickstart = 0;
+//			  uint32_t regvalue = 0;
+//
+//			  if(netif_is_link_up(netif))
+//			  {
+//			    /* Restart the auto-negotiation */
+//			    if(heth.Init.AutoNegotiation != ETH_AUTONEGOTIATION_DISABLE)
+//			    {
+//			      /* Enable Auto-Negotiation */
+//			      HAL_ETH_WritePHYRegister(&heth, PHY_BCR, PHY_AUTONEGOTIATION);
+//
+//			      /* Get tick */
+//			      tickstart = HAL_GetTick();
+//
+//			      /* Wait until the auto-negotiation will be completed */
+//			      do
+//			      {
+//			        HAL_ETH_ReadPHYRegister(&heth, PHY_BSR, &regvalue);
+//
+//			        /* Check for the Timeout ( 1s ) */
+//			        if((HAL_GetTick() - tickstart ) > 1000)
+//			        {
+//			          /* In case of timeout */
+//			          goto error;
+//			        }
+//			      } while (((regvalue & PHY_AUTONEGO_COMPLETE) != PHY_AUTONEGO_COMPLETE));
+//
+//			      /* Read the result of the auto-negotiation */
+//			      HAL_ETH_ReadPHYRegister(&heth, PHY_SR, &regvalue);
+//
+//			      /* Configure the MAC with the Duplex Mode fixed by the auto-negotiation process */
+//			      if((regvalue & PHY_DUPLEX_STATUS) != (uint32_t)RESET)
+//			      {
+//			        /* Set Ethernet duplex mode to Full-duplex following the auto-negotiation */
+//			        heth.Init.DuplexMode = ETH_MODE_FULLDUPLEX;
+//			      }
+//			      else
+//			      {
+//			        /* Set Ethernet duplex mode to Half-duplex following the auto-negotiation */
+//			        heth.Init.DuplexMode = ETH_MODE_HALFDUPLEX;
+//			      }
+//			      /* Configure the MAC with the speed fixed by the auto-negotiation process */
+//			      if(regvalue & PHY_SPEED_STATUS)
+//			      {
+//			        /* Set Ethernet speed to 10M following the auto-negotiation */
+//			        heth.Init.Speed = ETH_SPEED_10M;
+//			      }
+//			      else
+//			      {
+//			        /* Set Ethernet speed to 100M following the auto-negotiation */
+//			        heth.Init.Speed = ETH_SPEED_100M;
+//			      }
+//			    }
+//			    else /* AutoNegotiation Disable */
+//			    {
+//			    error :
+//			      /* Check parameters */
+//			      assert_param(IS_ETH_SPEED(heth.Init.Speed));
+//			      assert_param(IS_ETH_DUPLEX_MODE(heth.Init.DuplexMode));
+//
+//			      /* Set MAC Speed and Duplex Mode to PHY */
+//			      HAL_ETH_WritePHYRegister(&heth, PHY_BCR, ((uint16_t)(heth.Init.DuplexMode >> 3) |
+//			                                                     (uint16_t)(heth.Init.Speed >> 1)));
+//			    }
+//
+//			    /* ETHERNET MAC Re-Configuration */
+//			    HAL_ETH_ConfigMAC(&heth, (ETH_MACInitTypeDef *) NULL);
+//
+//			    /* Restart MAC interface */
+//			    HAL_ETH_Start(&heth);
+//			  }
+//			  else
+//			  {
+//			    /* Stop MAC interface */
+//			    HAL_ETH_Stop(&heth);
+//			  }
+//
+//			  ethernetif_notify_conn_changed(netif);
 			DHCP_state = DHCP_START;
 		}
 		else if (!phy_link_status)

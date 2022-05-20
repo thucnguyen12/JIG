@@ -59,7 +59,7 @@
 #include "adc.h"
 #include "sntp.h"
 #include "rtc.h"
-
+#include "time.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -80,7 +80,7 @@
 #define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE
 #define USB_CDC_TX_RING_BUFFER_SIZE		1024
 
-#define TIMEOUT 60000
+#define TIMEOUT 6000
 
 //********************************time typedef*********************//
 typedef struct
@@ -186,6 +186,8 @@ typedef struct
     uint8_t hw_version[3];  // Major.minor.build
 
     func_test_t test_result;
+
+    uint32_t timestamp;
 } __attribute__((packed)) jig_value_t;
 
 typedef struct
@@ -323,9 +325,14 @@ typedef struct
 	lwrb_t m_ringbuffer_rs485_rx;
 //******************************************************************//
 //************************** RTC VAR*******************************//
+
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
+  RTC_TimeTypeDef sTimeToSend = {0};
+  RTC_DateTypeDef sDateToSend = {0};
   RTC_HandleTypeDef hrtc1;
+  static date_time_t date_time;
+
 //********************************************************************//
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
@@ -335,10 +342,15 @@ osThreadId defaultTaskHandle;
 
 /************      BUTTON FP          ***************/
 void button_initialize(uint32_t button_num);
+
 uint32_t btn_read(uint32_t pin);
+
 void on_btn_pressed(int number, int event, void * pData);
+
 void on_btn_release(int number, int event, void * pData);
+
 void on_btn_hold(int number, int event, void * pData);
+
 static void on_btn_hold_so_long(int index, int event, void * pData);
 /********************************************************/
 
@@ -350,24 +362,39 @@ void net_task(void *argument);
 
 /*****************        TASK PFP                *************/
 void cdc_task(void* params);
+
 void usb_task (void* params);
+
 void flash_task(void *argument);
+
 void testing_task (void *arg);
+
 /**************************************************************/
-//*******************test prototype
+//*******************test prototype**********************//
+
 int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str);
+
 void Get_test_result (jig_value_t * value, jig_peripheral_t* peripheral);
+
 //void make_string_from_mac(char* str);
+
 void send_test_command(min_msg_t * test_command);
+
 bool RS232_tx (void *ctx, uint8_t byte);
+
 void Get_sim_imei(jig_value_t * value, char *sim_imei);
+
 void Get_gsm_imei(jig_value_t * value, char *gsm_imei);
+
 void Get_MAC(jig_value_t * value, uint8_t *MAC);
 //*******************************************//
 
 // ********************* RTC PFP****************//
 void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate);
+
 static void initialize_stnp(void);
+
+static uint32_t convert_date_time_to_second(date_time_t *t);
 //*************************************************//
 /* USER CODE END FunctionPrototypes */
 
@@ -537,10 +564,10 @@ void StartDefaultTask(void const * argument)
   {
   	  xTaskCreate(net_task, "net_task", 1024, NULL, 0, &m_task_handle_protocol);
   }
-//  	  if (mTest_Handle_t == NULL)
-//  	  {
-//  		  xTaskCreate (testing_task, "testing_task", 1024, NULL, 5, &mTest_Handle_t);
-//  	  }
+  if (mTest_Handle_t == NULL)
+  {
+	  xTaskCreate (testing_task, "testing_task", 1024, NULL, 5, &mTest_Handle_t);
+  }
 #if LWIP_DHCP
 
 //	  /* Start DHCPClient */
@@ -991,6 +1018,7 @@ void net_task(void *argument)
 #if 1
 	// http://httpbin.org/get
 	jig_value_t* rev_jig_value;
+	date_time_t date_time_buff;
 	uint16_t len;
 	for (;;)
 	{
@@ -1000,6 +1028,16 @@ void net_task(void *argument)
 //		}
 			xQueueReceive(httpQueue, &rev_jig_value, portMAX_DELAY);
 			DEBUG_WARN ("GOT THE QUEUE \r\n");
+			HAL_RTC_GetTime (&hrtc1, &sTimeToSend, RTC_FORMAT_BIN);
+			HAL_RTC_GetDate (&hrtc1, &sDateToSend, RTC_FORMAT_BIN);
+			date_time_buff.day = date_time.day;
+			date_time_buff.month = date_time.day;
+			date_time_buff.year = date_time.year + 30;
+			date_time_buff.hour = date_time.hour;
+			date_time_buff.minute = date_time.minute;
+			date_time_buff.second = date_time.second;
+			rev_jig_value->timestamp = convert_date_time_to_second (&date_time);
+			DEBUG_ERROR ("CAL : %u", rev_jig_value->timestamp);
 			len = json_build (rev_jig_value, &(rev_jig_value->test_result), json_send_to_sever);
 			vPortFree(rev_jig_value);
 
@@ -1114,12 +1152,12 @@ void volTest(void)
 		VolRes [i] = (ADCScan[i]*3300/4095);
 		VolRes [i] = VolRes[i] *2;
 	}
-	DEBUG_INFO ("V4V2 : %d mV\r\n", VolRes [0]);
-	DEBUG_INFO ("VBAT : %d mV\r\n", VolRes [1]);
-	DEBUG_INFO ("V5v : %d mV\r\n", VolRes [2]);
-	DEBUG_INFO ("V3v3 : %d mV\r\n", VolRes [3]);
-	DEBUG_INFO ("V1v8 : %d mV\r\n", VolRes [4]);
-	DEBUG_INFO ("Vsys : %d mV\r\n", VolRes [5]);
+	DEBUG_VERBOSE ("V4V2 : %d mV\r\n", VolRes [0]);
+	DEBUG_VERBOSE ("VBAT : %d mV\r\n", VolRes [1]);
+	DEBUG_VERBOSE ("V5v : %d mV\r\n", VolRes [2]);
+	DEBUG_VERBOSE ("V3v3 : %d mV\r\n", VolRes [3]);
+	DEBUG_VERBOSE ("V1v8 : %d mV\r\n", VolRes [4]);
+	DEBUG_VERBOSE ("Vsys : %d mV\r\n", VolRes [5]);
 	res_cnt = 0;
 	if (voltage_info.v4v2_min <= VolRes[0] && VolRes[0] <= voltage_info.v4v2_max)
 	{
@@ -1179,11 +1217,11 @@ void volTest(void)
 	if (res_cnt == 6)
 	{
 //		return true;
-		DEBUG_INFO ("VOLTAGE OK\r\n");
+		DEBUG_VERBOSE ("VOLTAGE OK\r\n");
 	}
 	else
 	{
-		DEBUG_INFO ("VOLTAGE FAIL \r\n");
+		DEBUG_VERBOSE ("VOLTAGE FAIL \r\n");
 	}
 //	return false;
 }
@@ -1405,7 +1443,7 @@ void testing_task (void *arg)
 			}
 			if (get_jig_info)
 			{
-					DEBUG_INFO ("GET EOF START CHECK MAC \r\n");
+					DEBUG_VERBOSE ("GET EOF START CHECK MAC \r\n");
 					if (strcmp((char*)MAC, (char*)lastMAC) != 0 )
 					{
 						ready_send_to_sever = false;
@@ -1416,7 +1454,7 @@ void testing_task (void *arg)
 						allPassed = 0;
 						test_res.result.relay0_ok = 0;
 						test_res.result.relay1_ok = 0;
-						DEBUG_INFO ("MAC CHANGED: %02x: %02x: %02x: %02x: %02x: %02x\r\n", MAC[0], MAC[1], MAC[2], MAC[3], MAC[4],MAC[5]);
+						DEBUG_VERBOSE ("MAC CHANGED: %02x: %02x: %02x: %02x: %02x: %02x\r\n", MAC[0], MAC[1], MAC[2], MAC[3], MAC[4],MAC[5]);
 						to_send_value = rx_value;
 						if (((to_send_value ->peripheral.value) == 0xFFFF) && (test_res.result.test_wd_ok != 1))
 						{
@@ -1426,7 +1464,7 @@ void testing_task (void *arg)
 					else
 					{
 
-						DEBUG_INFO ("MAC STILL THE SAME, UPDATE \r\n");
+						DEBUG_VERBOSE ("MAC STILL THE SAME, UPDATE \r\n");
 						if (allPassed)
 						{
 							break;
@@ -1481,7 +1519,7 @@ void testing_task (void *arg)
 						}
 
 	//					json_build (to_send_value,  &test_res, json_send_to_sever);
-	//					DEBUG_INFO ("BUILT A JSON: %s", json_send_to_sever);
+	//					DEBUG_VERBOSE ("BUILT A JSON: %s", json_send_to_sever);
 						if (((to_send_value ->peripheral.value) == 0xFFFF) && (test_res.result.test_wd_ok != 1))
 						{
 							send_test_command ((min_msg_t *)&reset_cmd_wd);
@@ -1491,7 +1529,7 @@ void testing_task (void *arg)
 //							json_len = json_build (to_send_value, &test_res, json_send_to_sever);
 							ready_send_to_sever = true;
 							sent_to_sever = false;
-							DEBUG_INFO ("NOW PASSED SEND AGAIN \r\n");
+							DEBUG_VERBOSE ("NOW PASSED SEND AGAIN \r\n");
 						}
 					}
 					for (uint8_t i = 0; i < 6; i++)
@@ -1500,8 +1538,8 @@ void testing_task (void *arg)
 					}
 				if (PassTest(to_send_value))
 				{
-					DEBUG_INFO ("PASSED ALL TESTS \r\n");
-					json_len = json_build (to_send_value, &test_res, json_send_to_sever);
+					DEBUG_VERBOSE ("PASSED ALL TESTS \r\n");
+//					json_len = json_build (to_send_value, &test_res, json_send_to_sever);
 					ready_send_to_sever = true;
 				}
 				else
@@ -1510,8 +1548,8 @@ void testing_task (void *arg)
 					{
 //						send_json_to_sever();// ban bang queue
 //						json_len = json_build (to_send_value, &test_res, json_send_to_sever);
-//						DEBUG_INFO ("JSON STRING: %s\r\n", json_send_to_sever);
-						DEBUG_INFO ("TIME OUT PREPARE TO SEND \r\n");
+//						DEBUG_VERBOSE ("JSON STRING: %s\r\n", json_send_to_sever);
+						DEBUG_VERBOSE ("TIME OUT PREPARE TO SEND \r\n");
 						ready_send_to_sever = true;
 						last_tick_time_out = now;
 
@@ -1777,7 +1815,7 @@ static uint32_t convert_date_time_to_second(date_time_t *t)
 
 void lwip_sntp_recv_cb (uint32_t time)
 {
-	date_time_t date_time;
+
 	if (time == 0)
 	{
 		DEBUG_INFO ("NTP ERROR \r\n");
@@ -1785,11 +1823,41 @@ void lwip_sntp_recv_cb (uint32_t time)
 	else
 	{
 //		reInitRTC()
-		HAL_RTC_GetTime (&hrtc1, &sTime, RTC_FORMAT_BCD);
-		HAL_RTC_GetDate (&hrtc1, &sDate, RTC_FORMAT_BCD);
-		DEBUG_INFO (" GOT TIME : it's been %u sencond from last time\r\n", time);
-		convert_second_to_date_time ((time + 25200), &date_time, 1); // time for gmt +7
-		DEBUG_INFO ("TIME NOW IS: %d:%d:%d %d-%d-%d", date_time.hour, date_time.minute, date_time.second, date_time.day,date_time.month, (date_time.year + 1970));
+		HAL_RTC_GetTime (&hrtc1, &sTime, RTC_FORMAT_BIN);
+		HAL_RTC_GetDate (&hrtc1, &sDate, RTC_FORMAT_BIN);
+		DEBUG_INFO (" GOT TIME : it's been %u second from 1970\r\n", time);
+
+		time_t rawtime = time;
+		struct tm ts;
+
+		// Format time, "ddd yyyy-mm-dd hh:mm:ss zzz"
+		ts = *localtime(&rawtime);
+
+		DEBUG_INFO("Time now: %02d:%02d:%02d  %02d-%02d-%d\r\n", ts.tm_hour, ts.tm_min, ts.tm_sec, ts.tm_mday, ts.tm_mon + 1, ts.tm_year + 1900);
+
+		date_time.year = (ts.tm_year + 1900) % 2000; //year - 1900
+		date_time.month = ts.tm_mon + 1;             // month, where 0 = jan
+		date_time.day = ts.tm_mday;                  // day of the month
+		date_time.hour = ts.tm_hour;
+		date_time.minute = ts.tm_min;
+		date_time.second = ts.tm_sec;
+
+		uint32_t time_buff = convert_date_time_to_second (&date_time) + 25200;// time for gmt +7
+
+		convert_second_to_date_time (time_buff, &date_time, 1);
+
+		DEBUG_INFO ("TIME NOW IS: %d:%d:%d %d-%d-%d", date_time.hour, date_time.minute, date_time.second, date_time.day,date_time.month, (date_time.year + 2000));
+		sTime.Hours = date_time.hour;
+		sTime.Minutes = date_time.minute;
+		sTime.Seconds = date_time.second;
+		sDate.Year = date_time.year;
+		sDate.Month = date_time.month;
+		sDate.Date = date_time.day;
+		reInitRTC (sTime,sDate);
+//		HAL_RTC_GetTime (&hrtc1, &sTime, RTC_FORMAT_BIN);
+//		HAL_RTC_GetDate (&hrtc1, &sDate, RTC_FORMAT_BIN);
+		DEBUG_INFO ("GET TIME: %d: %d: %d \r\n", (uint8_t)(sTime.Hours), (uint8_t)(sTime.Minutes),(uint8_t)(sTime.Seconds));
+		DEBUG_INFO ("GET date: %d: %d: %d \r\n", (uint8_t)(sDate.Date), (uint8_t)(sDate.Month),(uint8_t)(sDate.Year));
 		uint32_t timenew = convert_date_time_to_second (&date_time);
 		DEBUG_INFO ("TIME CALCULATE: %u", timenew);
 	}
@@ -1824,6 +1892,7 @@ void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate)
 	  hrtc1.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
 	  if (HAL_RTC_Init(&hrtc1) != HAL_OK)
 	  {
+		  DEBUG_ERROR ("CAN'T SET rtc handler \r\n");
 	    Error_Handler();
 	  }
 
@@ -1838,8 +1907,9 @@ void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate)
 //	  sTime.Seconds = 0x0;
 //	  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
 //	  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-	  if (HAL_RTC_SetTime(&hrtc1, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+	  if (HAL_RTC_SetTime(&hrtc1, &sTime, RTC_FORMAT_BIN) != HAL_OK)
 	  {
+		  DEBUG_ERROR ("CAN'T SET TIME \r\n");
 	    Error_Handler();
 	  }
 //	  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
@@ -1847,8 +1917,9 @@ void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate)
 //	  sDate.Date = 0x12;
 //	  sDate.Year = 0x0;
 
-	  if (HAL_RTC_SetDate(&hrtc1, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+	  if (HAL_RTC_SetDate(&hrtc1, &sDate, RTC_FORMAT_BIN) != HAL_OK)
 	  {
+		  DEBUG_ERROR ("CAN'T SET date \r\n");
 	    Error_Handler();
 	  }
 }
@@ -1862,10 +1933,11 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 //	strcat (json_str, json_strbuff);
 //	sprintf (json_str_buff, "\"day test\": %d:%d:%d,\r\n", 			day, month, year);
 //	strcat (json_str, json_strbuff);
-	index += sprintf (json_str+index, "[{\r\n\"DeviceType\":\"%s\",\r\n", 			value ->device_type ? "B02":"B01");
-	index += sprintf (json_str+index, "\"FirmwareVersion\":\"%d.%d.%d\",\r\n",value ->fw_version[0],value ->fw_version[1],value ->fw_version[2] );
-	index += sprintf (json_str+index, "\"HardwardVersion\":\"%d.%d.%d\",\r\n",value ->hw_version[0],value ->hw_version[1],value ->hw_version[2] );
-	index += sprintf (json_str+index, "\"GsmIMEI\":\"%s\",\r\n", 				value ->gsm_imei);
+	index += sprintf (json_str+index, "[{\"timestamp\":%u,", 			value ->timestamp);
+	index += sprintf (json_str+index, "\"DeviceType\":\"%s\",", 			value ->device_type ? "B02":"B01");
+	index += sprintf (json_str+index, "\"FirmwareVersion\":\"%d.%d.%d\",",value ->fw_version[0],value ->fw_version[1],value ->fw_version[2] );
+	index += sprintf (json_str+index, "\"HardwardVersion\":\"%d.%d.%d\",",value ->hw_version[0],value ->hw_version[1],value ->hw_version[2] );
+	index += sprintf (json_str+index, "\"GsmIMEI\":\"%s\",", 				value ->gsm_imei);
 	sprintf (mac_str, "%02x:%02x:%02x:%02x:%02x:%02x",	value->mac[0],
 														value->mac[1],
 														value->mac[2],
@@ -1873,37 +1945,37 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 														value->mac[4],
 														value->mac[5]);
 //	make_string_from_mac (mac_str);
-	index += sprintf (json_str+index, "\"MacJIG\":\"%s\",\r\n", 						mac_str);
-	index += sprintf (json_str+index, "\"ErrorResults\":{\r\n");
-	index += sprintf (json_str+index, "\"sim\":%s,\r\n", 						test->result.sim_ok ? "true" : "false");
-	index += sprintf (json_str+index, "\"vGsm4V2\":%s,\r\n", 					test ->result.vgsm4v2_ok ? "true" : "false");
-	index += sprintf (json_str+index, "\"eth\":%s,\r\n", 						value ->peripheral.name.eth ? "true" : "false");
-	index += sprintf (json_str+index, "\"wifi\":%s,\r\n", 						value ->peripheral.name.wifi ? "true" : "false");
-	index += sprintf (json_str+index, "\"server\":%s,\r\n", 						value ->peripheral.name.server ? "true" : "false");
+	index += sprintf (json_str+index, "\"MacJIG\":\"%s\",", 						mac_str);
+	index += sprintf (json_str+index, "\"ErrorResults\":{");
+	index += sprintf (json_str+index, "\"sim\":%s,", 						test->result.sim_ok ? "true" : "false");
+	index += sprintf (json_str+index, "\"vGsm4V2\":%s,", 					test ->result.vgsm4v2_ok ? "true" : "false");
+	index += sprintf (json_str+index, "\"eth\":%s,", 						value ->peripheral.name.eth ? "true" : "false");
+	index += sprintf (json_str+index, "\"wifi\":%s,", 						value ->peripheral.name.wifi ? "true" : "false");
+	index += sprintf (json_str+index, "\"server\":%s,", 						value ->peripheral.name.server ? "true" : "false");
 //	sprintf (json_str_buff, "\"GSM status\":%d,\r\n", 				value ->peripheral.name.gsm);
 
-	index += sprintf (json_str+index, "\"mainPower\":%s,\r\n", 					value ->peripheral.name.main_power_pass ? "true" : "false");
-	index += sprintf (json_str+index, "\"backupPower\":%s,\r\n", 				value ->peripheral.name.backup_power_pass? "true" : "false");
-	index += sprintf (json_str+index, "\"buttonTest\":%s,\r\n", 				value ->peripheral.name.button_pass? "true" : "false");
-	index += sprintf (json_str+index, "\"input\":[%s,%s,%s,%s],\r\n",			value->peripheral.name.input0_pass ? "true" : "false",\
+	index += sprintf (json_str+index, "\"mainPower\":%s,", 					value ->peripheral.name.main_power_pass ? "true" : "false");
+	index += sprintf (json_str+index, "\"backupPower\":%s,", 				value ->peripheral.name.backup_power_pass? "true" : "false");
+	index += sprintf (json_str+index, "\"buttonTest\":%s,", 				value ->peripheral.name.button_pass? "true" : "false");
+	index += sprintf (json_str+index, "\"input\":[%s,%s,%s,%s],",			value->peripheral.name.input0_pass ? "true" : "false",\
 																				value->peripheral.name.input1_pass ? "true" : "false",\
 																				value->peripheral.name.input2_pass ? "true" : "false",\
 																				value->peripheral.name.input3_pass ? "true" : "false");
-	index += sprintf (json_str+index, "\"temperature\":%s,\r\n", 				test->result.temper_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"charge\":%s,\r\n", 					test->result.charge_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"alarmIn\":%s,\r\n", 					test->result.alarm_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"faultIn\":%s,\r\n", 					test->result.fault_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"sosButton\":%s,\r\n", 					test->result.sosButton_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"relay0\":%s,\r\n", 					test->result.relay0_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"relay1\":%s,\r\n", 					test->result.relay1_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"watchdog\":%s,\r\n", 					test->result.test_wd_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"v4v2\":%s,\r\n", 						test->result.vgsm4v2_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"vbat\":%s,\r\n", 						test->result.vbat_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"v1v8\":%s,\r\n", 						test->result.v1v8_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"v3v3\":%s,\r\n", 						test->result.v3v3_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"v5v\":%s,\r\n", 						test->result.v5v_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"vsys\":%s,\r\n", 						test->result.vsys_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"allPassed\":%s\r\n  }\r\n}]", 	allPassed? "true" : "false");
+	index += sprintf (json_str+index, "\"temperature\":%s,", 				test->result.temper_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"charge\":%s,", 					test->result.charge_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"alarmIn\":%s,", 					test->result.alarm_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"faultIn\":%s,", 					test->result.fault_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"sosButton\":%s,", 					test->result.sosButton_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"relay0\":%s,", 					test->result.relay0_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"relay1\":%s,", 					test->result.relay1_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"watchdog\":%s,", 					test->result.test_wd_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"v4v2\":%s,", 						test->result.vgsm4v2_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"vbat\":%s,", 						test->result.vbat_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"v1v8\":%s,", 						test->result.v1v8_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"v3v3\":%s,", 						test->result.v3v3_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"v5v\":%s,", 						test->result.v5v_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"vsys\":%s,", 						test->result.vsys_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"allPassed\":%s}}]", 	allPassed? "true" : "false");
 	return index;
 }
 //********************************************************************//
