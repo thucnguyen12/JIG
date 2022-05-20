@@ -59,6 +59,7 @@
 #include "adc.h"
 #include "sntp.h"
 #include "rtc.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -81,6 +82,20 @@
 
 #define TIMEOUT 60000
 
+//********************************time typedef*********************//
+typedef struct
+{
+    uint8_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+} date_time_t;
+static const uint8_t day_in_month[12] = {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+#define FIRSTYEAR 2000 // start year
+#define FIRSTDAY 6     // 0 = Sunday
+//8*************************************************
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -352,7 +367,7 @@ void Get_MAC(jig_value_t * value, uint8_t *MAC);
 
 // ********************* RTC PFP****************//
 void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate);
-
+static void initialize_stnp(void);
 //*************************************************//
 /* USER CODE END FunctionPrototypes */
 
@@ -522,10 +537,10 @@ void StartDefaultTask(void const * argument)
   {
   	  xTaskCreate(net_task, "net_task", 1024, NULL, 0, &m_task_handle_protocol);
   }
-  	  if (mTest_Handle_t == NULL)
-  	  {
-  		  xTaskCreate (testing_task, "testing_task", 1024, NULL, 5, &mTest_Handle_t);
-  	  }
+//  	  if (mTest_Handle_t == NULL)
+//  	  {
+//  		  xTaskCreate (testing_task, "testing_task", 1024, NULL, 5, &mTest_Handle_t);
+//  	  }
 #if LWIP_DHCP
 
 //	  /* Start DHCPClient */
@@ -539,6 +554,7 @@ void StartDefaultTask(void const * argument)
 //		  xTaskCreate(flash_task, "flash_task", 1024, NULL, 3, &m_task_connect_handle);// pio =1
 //	  }
   /* Infinite loop */
+
   for(;;)
   {
 //	HAL_GPIO_TogglePin (LED_DONE_GPIO_Port, LED_DONE_Pin);
@@ -970,6 +986,7 @@ void net_task(void *argument)
 		 {
 			 vTaskDelay(100);
 		 }
+	  initialize_stnp();
 //	DEBUG_WARN ("GOT IP START TO SEND!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
 #if 1
 	// http://httpbin.org/get
@@ -1648,8 +1665,119 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 //********************************************************************//
 
 // **************************** TIME PROTOCOL ***************************//
+static void convert_second_to_date_time(uint32_t sec, date_time_t *t, uint8_t Calyear)
+{
+    uint16_t day;
+    uint8_t year;
+    uint16_t days_of_year;
+    uint8_t leap400;
+    uint8_t month;
+
+    t->second = sec % 60;
+    sec /= 60;
+    t->minute = sec % 60;
+    sec /= 60;
+    t->hour = sec % 24;
+
+    if (Calyear == 0)
+        return;
+
+    day = (uint16_t)(sec / 24);
+
+    year = FIRSTYEAR % 100;                   // 0..99
+    leap400 = 4 - ((FIRSTYEAR - 1) / 100 & 3); // 4, 3, 2, 1
+
+    for (;;)
+    {
+        days_of_year = 365;
+        if ((year & 3) == 0)
+        {
+            days_of_year = 366; // leap year
+            if (year == 0 || year == 100 || year == 200)
+            { // 100 year exception
+                if (--leap400)
+                { // 400 year exception
+                    days_of_year = 365;
+                }
+            }
+        }
+        if (day < days_of_year)
+        {
+            break;
+        }
+        day -= days_of_year;
+        year++; // 00..136 / 99..235
+    }
+    t->year = year + FIRSTYEAR / 100 * 100 - 2000; // + century
+    if (days_of_year & 1 && day > 58)
+    {          // no leap year and after 28.2.
+        day++; // skip 29.2.
+    }
+
+    for (month = 1; day >= day_in_month[month - 1]; month++)
+    {
+        day -= day_in_month[month - 1];
+    }
+
+    t->month = month; // 1..12
+    t->day = day + 1; // 1..31
+}
+
+static uint32_t convert_date_time_to_second(date_time_t *t)
+{
+    uint8_t i;
+    uint32_t result = 0;
+    uint16_t idx, year;
+
+    year = t->year + 2000;
+
+    /* Calculate days of years before */
+    result = (uint32_t)year * 365;
+    if (t->year >= 1)
+    {
+        result += (year + 3) / 4;
+        result -= (year - 1) / 100;
+        result += (year - 1) / 400;
+    }
+
+    /* Start with 2000 a.d. */
+    result -= 730485UL;
+
+    /* Make month an array index */
+    idx = t->month - 1;
+
+    /* Loop thru each month, adding the days */
+    for (i = 0; i < idx; i++)
+    {
+        result += day_in_month[i];
+    }
+
+    /* Leap year? adjust February */
+    if (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0))
+    {
+        ;
+    }
+    else
+    {
+        if (t->month > 2)
+        {
+            result--;
+        }
+    }
+
+    /* Add remaining days */
+    result += t->day;
+
+    /* Convert to seconds, add all the other stuff */
+    result = (result - 1) * 86400L + (uint32_t)t->hour * 3600 +
+             (uint32_t)t->minute * 60 + t->second;
+
+    return result;
+}
+
 void lwip_sntp_recv_cb (uint32_t time)
 {
+	date_time_t date_time;
 	if (time == 0)
 	{
 		DEBUG_INFO ("NTP ERROR \r\n");
@@ -1657,19 +1785,27 @@ void lwip_sntp_recv_cb (uint32_t time)
 	else
 	{
 //		reInitRTC()
-		DEBUG_INFO (" GOT TIME : it's been %u sencond from last time", time);
+		HAL_RTC_GetTime (&hrtc1, &sTime, RTC_FORMAT_BCD);
+		HAL_RTC_GetDate (&hrtc1, &sDate, RTC_FORMAT_BCD);
+		DEBUG_INFO (" GOT TIME : it's been %u sencond from last time\r\n", time);
+		convert_second_to_date_time ((time + 25200), &date_time, 1); // time for gmt +7
+		DEBUG_INFO ("TIME NOW IS: %d:%d:%d %d-%d-%d", date_time.hour, date_time.minute, date_time.second, date_time.day,date_time.month, (date_time.year + 1970));
+		uint32_t timenew = convert_date_time_to_second (&date_time);
+		DEBUG_INFO ("TIME CALCULATE: %u", timenew);
 	}
 }
+
 static void initialize_stnp(void)
 {
     static bool sntp_start = false;
     if (sntp_start == false)
     {
         sntp_start = true;
-        DEBUG_INFO("Initialize stnp\r\n");
+
         sntp_setoperatingmode(SNTP_OPMODE_POLL);
         sntp_setservername(0, "pool.ntp.org");
         sntp_init();
+        DEBUG_INFO("Initialize stnp\r\n");
     }
 }
 
