@@ -51,6 +51,7 @@
 /* USER CODE BEGIN PFP */
 void rs232_rx_callback (void);
 void rs485_rxcallback (void);
+void tusb_read_callback (void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -398,6 +399,7 @@ void ETH_IRQHandler(void)
 void OTG_FS_IRQHandler(void)
 {
   /* USER CODE BEGIN OTG_FS_IRQn 0 */
+
 	tud_int_handler(BOARD_DEVICE_RHPORT_NUM);
 	return;
   /* USER CODE END OTG_FS_IRQn 0 */

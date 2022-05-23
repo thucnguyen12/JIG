@@ -942,6 +942,7 @@ httpc_get_file_dns_to_disk(const char* server_name, u16_t port, const char* uri,
     "Accept: */*\r\n" \
     "Host: %s\r\n" /* server name */ \
     "Content-Length: %d\r\n"    /* Content length */\
+	"Content-Type: application/json\r\n"    /* Content type */\
     "Connection: Close\r\n" /* we don't support persistent connections, yet */ \
     "\r\n"
 #define HTTPC_POST_11_HOST_FORMAT(uri, srv_name, content_len) HTTPC_POST_11_HOST, uri, HTTPC_CLIENT_AGENT, srv_name, content_len

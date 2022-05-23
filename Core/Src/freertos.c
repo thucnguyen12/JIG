@@ -60,6 +60,7 @@
 #include "sntp.h"
 #include "rtc.h"
 #include "time.h"
+#include "app_cli.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -80,7 +81,7 @@
 #define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE
 #define USB_CDC_TX_RING_BUFFER_SIZE		1024
 
-#define TIMEOUT 6000
+#define TIMEOUT 8000
 
 //********************************time typedef*********************//
 typedef struct
@@ -237,9 +238,10 @@ typedef struct
 /*************************************************************************************/
 //**************************    tiny USB TASK VAR     ***************************************//
 	static TaskHandle_t m_USB_handle = NULL;
-	bool tusb_init_flag;
+	bool tusb_init_flag = false;
 
 //*******************************************************************************************//
+
 /*********************      flash task var             ***********************/
 	static TaskHandle_t m_task_connect_handle = NULL;
 
@@ -332,8 +334,32 @@ typedef struct
   RTC_DateTypeDef sDateToSend = {0};
   RTC_HandleTypeDef hrtc1;
   static date_time_t date_time;
-
+  static const date_time_t date_time_2000 =
+  {
+		  .day = 1,
+		  .month = 1,
+		  .year = 0,
+		  .hour = 0,
+		  .minute = 0,
+		  .second = 0
+  };
 //********************************************************************//
+
+
+// ********************* APP CLI VARIABLE****************************//
+  uint32_t cdc_tx(const void *buffer, uint32_t size);
+  int32_t USB_puts(char *msg);
+  static app_cli_cb_t m_tcp_cli =
+  {
+      .puts = cdc_tx,
+      .printf = USB_puts,
+      .terminate = NULL
+  };
+//  static char m_cli_rx_buffer[128];
+//  lwrb_t m_ringbuffer_cli_rx;
+  void fakeMac (char *MACstring);
+  static bool m_cli_started = false;
+// ******************************************************************//
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 
@@ -568,6 +594,7 @@ void StartDefaultTask(void const * argument)
   {
 	  xTaskCreate (testing_task, "testing_task", 1024, NULL, 5, &mTest_Handle_t);
   }
+
 #if LWIP_DHCP
 
 //	  /* Start DHCPClient */
@@ -580,6 +607,7 @@ void StartDefaultTask(void const * argument)
 //	  {
 //		  xTaskCreate(flash_task, "flash_task", 1024, NULL, 3, &m_task_connect_handle);// pio =1
 //	  }
+//	  lwrb_init (&m_ringbuffer_cli_rx, &m_cli_rx_buffer, sizeof (m_cli_rx_buffer));
   /* Infinite loop */
 
   for(;;)
@@ -590,6 +618,20 @@ void StartDefaultTask(void const * argument)
 	  {
 		  HAL_GPIO_WritePin (LED_BUSY_GPIO_Port, LED_BUSY_Pin, GPIO_PIN_SET);
 	  }
+
+	  if (m_cli_started == false)
+	  {
+		  m_cli_started = true;
+		  app_cli_start(&m_tcp_cli);
+		  DEBUG_WARN ("APP CLI STARTED \r\n");
+	  }
+
+//	  while (lwrb_get_full(&m_ringbuffer_cli_rx))
+//	  {
+////		  DEBUG_VERBOSE ("NEED BREAK POINT\r\n");
+//		  uint8_t ch = lwrb_read (&m_ringbuffer_cli_rx, &ch,1);
+////		  app_cli_poll(ch);
+//	  }
 	  osDelay(10);
   }
   /* USER CODE END StartDefaultTask */
@@ -598,6 +640,27 @@ void StartDefaultTask(void const * argument)
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 /****************      CDC FUNCTION TASK          *************/
+
+//   app cli  tasking//
+void tusb_read_callback (void)
+{
+	while (1)
+{
+	uint8_t usb_ch;
+	uint32_t count = tud_cdc_read(&usb_ch, 1);
+	if (count)
+	{
+//				DEBUG_WARN ("THERE IS DATA FROM USB \r\n");
+//		lwrb_write (&m_ringbuffer_cli_rx, &usb_ch, 1);
+		app_cli_poll(usb_ch);
+	}
+	else
+	{
+		break;
+	}
+}
+}
+
 static bool m_cdc_debug_register = false;
 static lwrb_t m_ringbuffer_usb_cdc_tx;
 static uint8_t m_lwrb_tx_raw_buffer[USB_CDC_TX_RING_BUFFER_SIZE];
@@ -626,7 +689,7 @@ void cdc_task(void* params)
 	{
 //	    // connected() check for DTR bit
 //	    // Most but not all terminal client set this when making connection
-
+//		tusb_read_callback();
 		if (tud_cdc_connected())
 		{
 			if (m_cdc_debug_register == false)
@@ -634,29 +697,9 @@ void cdc_task(void* params)
 				m_cdc_debug_register = true;
 				app_debug_register_callback_print(cdc_tx);
 			}
-			// There are data available
 			if (tud_cdc_available())
 			{
-				uint8_t buf[64];
-
-				// read and echo back
-				uint32_t count = tud_cdc_read(buf, sizeof(buf));
-				(void) count;
-
-				if (count && strstr((char*)buf, "RESET"))
-				{
-					tud_cdc_write_flush();
-					tud_cdc_write_str("System reset\r\n");
-					tud_cdc_write_flush();
-					vTaskDelay(1000);
-					NVIC_SystemReset();
-				}
-//				// Echo back
-//				// Note: Skip echo by commenting out write() and write_flush()
-//				// for throughput test e.g
-//				//    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
-//				tud_cdc_write(buf, count);
-//				tud_cdc_write_flush();
+				tusb_read_callback();
 			}
 		}
 		else
@@ -1014,11 +1057,12 @@ void net_task(void *argument)
 			 vTaskDelay(100);
 		 }
 	  initialize_stnp();
+	  osDelay (1);
 //	DEBUG_WARN ("GOT IP START TO SEND!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
 #if 1
 	// http://httpbin.org/get
 	jig_value_t* rev_jig_value;
-	date_time_t date_time_buff;
+
 	uint16_t len;
 	for (;;)
 	{
@@ -1028,25 +1072,15 @@ void net_task(void *argument)
 //		}
 			xQueueReceive(httpQueue, &rev_jig_value, portMAX_DELAY);
 			DEBUG_WARN ("GOT THE QUEUE \r\n");
-			HAL_RTC_GetTime (&hrtc1, &sTimeToSend, RTC_FORMAT_BIN);
-			HAL_RTC_GetDate (&hrtc1, &sDateToSend, RTC_FORMAT_BIN);
-			date_time_buff.day = date_time.day;
-			date_time_buff.month = date_time.day;
-			date_time_buff.year = date_time.year + 30;
-			date_time_buff.hour = date_time.hour;
-			date_time_buff.minute = date_time.minute;
-			date_time_buff.second = date_time.second;
-			rev_jig_value->timestamp = convert_date_time_to_second (&date_time);
-			DEBUG_ERROR ("CAL : %u", rev_jig_value->timestamp);
 			len = json_build (rev_jig_value, &(rev_jig_value->test_result), json_send_to_sever);
 			vPortFree(rev_jig_value);
 
 			DEBUG_INFO ("%s", json_send_to_sever);
 			m_http_test_started = true;
 			app_http_config_t http_cfg;
-			sprintf(http_cfg.url, "%s", "192.168.1.3");
+			sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
 			http_cfg.port = 80;
-			sprintf(http_cfg.file, "%s", "/t.txt");
+			sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
 			http_cfg.on_event_cb = (void*)0;
 			http_cfg.method = APP_HTTP_POST;
 			trans_content_to_body ((uint8_t *) json_send_to_sever, len);
@@ -1095,28 +1129,10 @@ void Get_MAC(jig_value_t * value, uint8_t *MAC)
 		MAC[i] = value ->mac[i];
 	}
 }
-//void Get_gsm_imei(jig_value_t * value, char *gsm_imei)
-//{
-//	for (uint8_t i; i < 16; i++)
-//	{
-//		gsm_imei[i] = value ->gsm_imei[i];
-//	}
-//}
-//void Get_sim_imei(jig_value_t * value, char *sim_imei)
-//{
-//	for (uint8_t i; i < 16; i++)
-//	{
-//		sim_imei[i] = value ->sim_imei[i];
-//	}
-//}
-//void Get_test_result (jig_value_t * value, jig_peripheral_t* peripheral)
-//{
-//	peripheral = &(value->peripheral);
-//}
+
 
 void min_rx_callback (void *min_context , min_msg_t *frame)
 {
-//#warning "xu ly theo id thong nhat sau"
 	switch (frame ->id)
 	{
 	case MIN_ID_RS232_ENTER_TEST_MODE:
@@ -1152,12 +1168,12 @@ void volTest(void)
 		VolRes [i] = (ADCScan[i]*3300/4095);
 		VolRes [i] = VolRes[i] *2;
 	}
-	DEBUG_VERBOSE ("V4V2 : %d mV\r\n", VolRes [0]);
-	DEBUG_VERBOSE ("VBAT : %d mV\r\n", VolRes [1]);
-	DEBUG_VERBOSE ("V5v : %d mV\r\n", VolRes [2]);
-	DEBUG_VERBOSE ("V3v3 : %d mV\r\n", VolRes [3]);
-	DEBUG_VERBOSE ("V1v8 : %d mV\r\n", VolRes [4]);
-	DEBUG_VERBOSE ("Vsys : %d mV\r\n", VolRes [5]);
+	DEBUG_INFO ("V4V2 : %d mV\r\n", VolRes [0]);
+	DEBUG_INFO ("VBAT : %d mV\r\n", VolRes [1]);
+	DEBUG_INFO ("V5v : %d mV\r\n", VolRes [2]);
+	DEBUG_INFO ("V3v3 : %d mV\r\n", VolRes [3]);
+	DEBUG_INFO ("V1v8 : %d mV\r\n", VolRes [4]);
+	DEBUG_INFO ("Vsys : %d mV\r\n", VolRes [5]);
 	res_cnt = 0;
 	if (voltage_info.v4v2_min <= VolRes[0] && VolRes[0] <= voltage_info.v4v2_max)
 	{
@@ -1217,11 +1233,11 @@ void volTest(void)
 	if (res_cnt == 6)
 	{
 //		return true;
-		DEBUG_VERBOSE ("VOLTAGE OK\r\n");
+		DEBUG_INFO ("VOLTAGE OK\r\n");
 	}
 	else
 	{
-		DEBUG_VERBOSE ("VOLTAGE FAIL \r\n");
+		DEBUG_INFO ("VOLTAGE FAIL \r\n");
 	}
 //	return false;
 }
@@ -1248,15 +1264,6 @@ bool PassTest (jig_value_t * value)
 		test_res.result.temper_ok = 0;
 		DEBUG_INFO ("TEMPER IS not OK \r\n");
 	}
-//	bool vol_res = volTest();
-//	if (vol_res)
-//	{
-//		DEBUG_INFO ("VOLTAGE OK\r\n");
-//	}
-//	else
-//	{
-//		DEBUG_INFO ("VOLTAGE FAIL \r\n");
-//	}
 	if (test_res.result.rs232
 		&& test_res.result.rs485
 		&& test_res.result.relay0_ok
@@ -1301,7 +1308,7 @@ void testing_task (void *arg)
 	uint32_t last_tick = 0;
 	uint32_t last_tick_time_out = 0;
 	uint32_t last_vol_tick = 0;
-	uint32_t json_len;
+//	uint32_t json_len;
 	const min_msg_t test_cmd =
 	{
 			.id = MIN_ID_RS232_ENTER_TEST_MODE,
@@ -1412,6 +1419,7 @@ void testing_task (void *arg)
 		}
 	}
 	bool sent_to_sever =false;
+	send_test_command (&test_cmd);
 	for (;;)
 	{
 //		DEBUG_INFO ("ENTER TESTING LOOP \r\n");
@@ -1443,7 +1451,7 @@ void testing_task (void *arg)
 			}
 			if (get_jig_info)
 			{
-					DEBUG_VERBOSE ("GET EOF START CHECK MAC \r\n");
+					DEBUG_INFO ("GET EOF START CHECK MAC \r\n");
 					if (strcmp((char*)MAC, (char*)lastMAC) != 0 )
 					{
 						ready_send_to_sever = false;
@@ -1454,7 +1462,7 @@ void testing_task (void *arg)
 						allPassed = 0;
 						test_res.result.relay0_ok = 0;
 						test_res.result.relay1_ok = 0;
-						DEBUG_VERBOSE ("MAC CHANGED: %02x: %02x: %02x: %02x: %02x: %02x\r\n", MAC[0], MAC[1], MAC[2], MAC[3], MAC[4],MAC[5]);
+						DEBUG_INFO ("MAC CHANGED: %02x: %02x: %02x: %02x: %02x: %02x\r\n", MAC[0], MAC[1], MAC[2], MAC[3], MAC[4],MAC[5]);
 						to_send_value = rx_value;
 						if (((to_send_value ->peripheral.value) == 0xFFFF) && (test_res.result.test_wd_ok != 1))
 						{
@@ -1464,7 +1472,7 @@ void testing_task (void *arg)
 					else
 					{
 
-						DEBUG_VERBOSE ("MAC STILL THE SAME, UPDATE \r\n");
+						DEBUG_INFO ("MAC STILL THE SAME, UPDATE \r\n");
 						if (allPassed)
 						{
 							break;
@@ -1519,7 +1527,7 @@ void testing_task (void *arg)
 						}
 
 	//					json_build (to_send_value,  &test_res, json_send_to_sever);
-	//					DEBUG_VERBOSE ("BUILT A JSON: %s", json_send_to_sever);
+	//					DEBUG_INFO ("BUILT A JSON: %s", json_send_to_sever);
 						if (((to_send_value ->peripheral.value) == 0xFFFF) && (test_res.result.test_wd_ok != 1))
 						{
 							send_test_command ((min_msg_t *)&reset_cmd_wd);
@@ -1529,7 +1537,7 @@ void testing_task (void *arg)
 //							json_len = json_build (to_send_value, &test_res, json_send_to_sever);
 							ready_send_to_sever = true;
 							sent_to_sever = false;
-							DEBUG_VERBOSE ("NOW PASSED SEND AGAIN \r\n");
+							DEBUG_INFO ("NOW PASSED SEND AGAIN \r\n");
 						}
 					}
 					for (uint8_t i = 0; i < 6; i++)
@@ -1538,7 +1546,7 @@ void testing_task (void *arg)
 					}
 				if (PassTest(to_send_value))
 				{
-					DEBUG_VERBOSE ("PASSED ALL TESTS \r\n");
+					DEBUG_INFO ("PASSED ALL TESTS \r\n");
 //					json_len = json_build (to_send_value, &test_res, json_send_to_sever);
 					ready_send_to_sever = true;
 				}
@@ -1548,8 +1556,8 @@ void testing_task (void *arg)
 					{
 //						send_json_to_sever();// ban bang queue
 //						json_len = json_build (to_send_value, &test_res, json_send_to_sever);
-//						DEBUG_VERBOSE ("JSON STRING: %s\r\n", json_send_to_sever);
-						DEBUG_VERBOSE ("TIME OUT PREPARE TO SEND \r\n");
+//						DEBUG_INFO ("JSON STRING: %s\r\n", json_send_to_sever);
+						DEBUG_INFO ("TIME OUT PREPARE TO SEND \r\n");
 						ready_send_to_sever = true;
 						last_tick_time_out = now;
 
@@ -1557,13 +1565,29 @@ void testing_task (void *arg)
 				}
 				get_jig_info = false;
 			}
+			// THEM TRUONG HOP MACH MAIN KHONG TRUYEN TIN QUA RS232
+
 			if (ready_send_to_sever && (sent_to_sever == false))
 			{
+				date_time_t date_time_buff;
 				sent_to_sever = true;
 				jig_value_t* buff_jig_var;
 				buff_jig_var = (jig_value_t *) pvPortMalloc(sizeof (jig_value_t));
-//				if (buff_jig_var == NULL)
-//					buff_jig_var = (jig_value_t *) realloc (buff_jig_var ,2 *sizeof (jig_value_t));
+
+				HAL_RTC_GetTime (&hrtc1, &sTimeToSend, RTC_FORMAT_BIN);
+				HAL_RTC_GetDate (&hrtc1, &sDateToSend, RTC_FORMAT_BIN);
+				date_time_buff.day = sDateToSend.Date;
+				date_time_buff.month = sDateToSend.Month;
+				date_time_buff.year = sDateToSend.Year;
+				date_time_buff.hour = sTimeToSend.Hours - 7;
+				date_time_buff.minute = sTimeToSend.Minutes;
+				date_time_buff.second = sTimeToSend.Seconds;
+				buff_jig_var->timestamp = convert_date_time_to_second (&date_time_buff);
+				buff_jig_var->timestamp += 946684800; // add time from 1970 to 200
+				DEBUG_INFO ("GET TIME: %d: %d: %d \r\n", (uint8_t)(sTimeToSend.Hours), (uint8_t)(sTimeToSend.Minutes),(uint8_t)(sTimeToSend.Seconds));
+				DEBUG_INFO ("GET date: %d: %d: %d \r\n", (uint8_t)(sDateToSend.Date), (uint8_t)(sDateToSend.Month),(uint8_t)(sDateToSend.Year));
+				DEBUG_ERROR ("CALATED TIME : %u\r\n", buff_jig_var->timestamp);
+
 				buff_jig_var->device_type = to_send_value->device_type;
 				memcpy (buff_jig_var->fw_version, to_send_value->fw_version, 3);
 				memcpy (buff_jig_var->hw_version, to_send_value->hw_version, 3);
@@ -1577,7 +1601,7 @@ void testing_task (void *arg)
 			}
 			if ((now - last_tick) > 500 )
 			{
-//				DEBUG_VERBOSE ("SEND TEST CMD \r\n");
+//				DEBUG_INFO ("SEND TEST CMD \r\n");
 				send_test_command (&test_cmd);
 				last_tick = now;
 			}
@@ -1807,9 +1831,18 @@ static uint32_t convert_date_time_to_second(date_time_t *t)
     result += t->day;
 
     /* Convert to seconds, add all the other stuff */
+//    if (year < 2000)
+//    {
+//	    result = (result - 1) * 86400L + (uint32_t)t->hour * 3600 +
+//	             (uint32_t)t->minute * 60 + t->second;
+//	}
+//	else
+//	{
+//		result = (result-2) * 86400L + (uint32_t)t->hour * 3600 +
+//             (uint32_t)t->minute * 60 + t->second;
+//	}
     result = (result - 1) * 86400L + (uint32_t)t->hour * 3600 +
-             (uint32_t)t->minute * 60 + t->second;
-
+    	             (uint32_t)t->minute * 60 + t->second;
     return result;
 }
 
@@ -1823,8 +1856,6 @@ void lwip_sntp_recv_cb (uint32_t time)
 	else
 	{
 //		reInitRTC()
-		HAL_RTC_GetTime (&hrtc1, &sTime, RTC_FORMAT_BIN);
-		HAL_RTC_GetDate (&hrtc1, &sDate, RTC_FORMAT_BIN);
 		DEBUG_INFO (" GOT TIME : it's been %u second from 1970\r\n", time);
 
 		time_t rawtime = time;
@@ -1854,12 +1885,12 @@ void lwip_sntp_recv_cb (uint32_t time)
 		sDate.Month = date_time.month;
 		sDate.Date = date_time.day;
 		reInitRTC (sTime,sDate);
-//		HAL_RTC_GetTime (&hrtc1, &sTime, RTC_FORMAT_BIN);
-//		HAL_RTC_GetDate (&hrtc1, &sDate, RTC_FORMAT_BIN);
+		HAL_RTC_GetTime (&hrtc1, &sTime, RTC_FORMAT_BIN);
+		HAL_RTC_GetDate (&hrtc1, &sDate, RTC_FORMAT_BIN);
 		DEBUG_INFO ("GET TIME: %d: %d: %d \r\n", (uint8_t)(sTime.Hours), (uint8_t)(sTime.Minutes),(uint8_t)(sTime.Seconds));
 		DEBUG_INFO ("GET date: %d: %d: %d \r\n", (uint8_t)(sDate.Date), (uint8_t)(sDate.Month),(uint8_t)(sDate.Year));
-		uint32_t timenew = convert_date_time_to_second (&date_time);
-		DEBUG_INFO ("TIME CALCULATE: %u", timenew);
+//		uint32_t timenew = convert_date_time_to_second (&date_time);
+//		DEBUG_INFO ("TIME CALCULATE: %u", timenew);
 	}
 }
 
@@ -1933,7 +1964,7 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 //	strcat (json_str, json_strbuff);
 //	sprintf (json_str_buff, "\"day test\": %d:%d:%d,\r\n", 			day, month, year);
 //	strcat (json_str, json_strbuff);
-	index += sprintf (json_str+index, "[{\"timestamp\":%u,", 			value ->timestamp);
+	index += sprintf (json_str+index, "[{\"timestamp\":%lu,", 			value ->timestamp);
 	index += sprintf (json_str+index, "\"DeviceType\":\"%s\",", 			value ->device_type ? "B02":"B01");
 	index += sprintf (json_str+index, "\"FirmwareVersion\":\"%d.%d.%d\",",value ->fw_version[0],value ->fw_version[1],value ->fw_version[2] );
 	index += sprintf (json_str+index, "\"HardwardVersion\":\"%d.%d.%d\",",value ->hw_version[0],value ->hw_version[1],value ->hw_version[2] );
@@ -1979,6 +2010,23 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 	return index;
 }
 //********************************************************************//
+void fakeMac (char *MACstring)
+{
+	DEBUG_WARN ("ENTER FAKE MAC FUNC\r\n");
+	for (uint8_t i = 0; i < 6; i++)
+	{
+		MAC [i] = (uint8_t) MACstring [i];
+	}
+// co the fake them cac chi so khac de test.
+	get_jig_info = true;
+}
 
+int32_t USB_puts(char *msg)
+{
+    uint32_t len = strlen(msg);
+
+	cdc_tx((uint8_t*)msg, len);
+    return len;
+}
 /* USER CODE END Application */
 
