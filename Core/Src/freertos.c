@@ -595,10 +595,10 @@ void StartDefaultTask(void const * argument)
 	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
 #endif
 
-//	  if (m_task_connect_handle == NULL)
-//	  {
-//		  xTaskCreate(flash_task, "flash_task", 1024, NULL, 3, &m_task_connect_handle);// pio =1
-//	  }
+	  if (m_task_connect_handle == NULL)
+	  {
+		  xTaskCreate(flash_task, "flash_task", 1024, NULL, 3, &m_task_connect_handle);// pio =1
+	  }
 //	  lwrb_init (&m_ringbuffer_cli_rx, &m_cli_rx_buffer, sizeof (m_cli_rx_buffer));
   /* Infinite loop */
 	  HAL_RTC_GetTime (&hrtc, &sTimeToSend, RTC_FORMAT_BIN);
@@ -689,8 +689,8 @@ void cdc_task(void* params)
 		{
 			if (m_cdc_debug_register == false)
 			{
-//				m_cdc_debug_register = true;
-//				app_debug_register_callback_print(cdc_tx);
+				m_cdc_debug_register = true;
+				app_debug_register_callback_print(cdc_tx);
 			}
 			if (tud_cdc_available())
 			{
@@ -756,6 +756,7 @@ void flash_task(void *argument)
 	 DEBUG_INFO ("SEM TOOK \r\n");
 	if (m_disk_is_mounted)
 	{
+		vTaskDelay (200);
 		file_size = fatfs_read_file(info_file, (uint8_t*)m_file_address, sizeof(m_file_address) - 1);
 		if (file_size > 0)
 		{
@@ -838,6 +839,8 @@ void flash_task(void *argument)
 
 	for (;;)
 	{
+		if (0)
+		{
 		DEBUG_INFO("ENTER flash LOOP\r\n");
 		if (led_busy_toggle > 10)
 		{
@@ -994,6 +997,12 @@ void flash_task(void *argument)
 		}
 		vTaskDelay(45000);
 		DEBUG_INFO ("WAIT 45S DONE \r\n");
+		}
+		else
+		{
+			DEBUG_INFO ("IN FLASH TASK \r\n");
+			vTaskDelay(4000);
+		}
 	}
 }
 

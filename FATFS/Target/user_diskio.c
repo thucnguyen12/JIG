@@ -43,10 +43,13 @@
 #include "user_diskio.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "semphr.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
+SemaphoreHandle_t DiskMutex;
+
 /* Disk status */
 static volatile DSTATUS Stat = STA_NOINIT;
 
@@ -118,6 +121,8 @@ DSTATUS USER_initialize (
   /* USER CODE BEGIN INIT */
     Stat = RES_OK;
     storage_flash_initialize();
+    DiskMutex = xSemaphoreCreateMutex();
+    xSemaphoreGive(DiskMutex);
     return Stat;
   /* USER CODE END INIT */
 }
@@ -153,6 +158,7 @@ DRESULT USER_read (
 )
 {
   /* USER CODE BEGIN READ */
+	xSemaphoreTake(DiskMutex, portMAX_DELAY);
 	uint32_t i;
 	uint32_t addr = sector * APP_SPI_FLASH_SECTOR_SIZE;
 	DEBUG_VERBOSE("Read data at sector %d to %d\r\n", sector, sector + count);
@@ -163,6 +169,7 @@ DRESULT USER_read (
 		buff += APP_SPI_FLASH_SECTOR_SIZE;
 		addr += APP_SPI_FLASH_SECTOR_SIZE;
 	}
+	xSemaphoreGive(DiskMutex);
     return RES_OK;
   /* USER CODE END READ */
 }
@@ -185,6 +192,7 @@ DRESULT USER_write (
 {
   /* USER CODE BEGIN WRITE */
   /* USER CODE HERE */
+	xSemaphoreTake(DiskMutex, portMAX_DELAY);
 	uint32_t i;
 	uint32_t addr = sector * APP_SPI_FLASH_SECTOR_SIZE;
 	for (i=0; i<count ;i++)
@@ -195,7 +203,7 @@ DRESULT USER_write (
 		buff += APP_SPI_FLASH_SECTOR_SIZE;
 		addr += APP_SPI_FLASH_SECTOR_SIZE;
 	}
-
+	xSemaphoreGive(DiskMutex);
     return RES_OK;
   /* USER CODE END WRITE */
 }
