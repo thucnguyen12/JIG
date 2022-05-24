@@ -332,17 +332,8 @@ typedef struct
   RTC_DateTypeDef sDate = {0};
   RTC_TimeTypeDef sTimeToSend = {0};
   RTC_DateTypeDef sDateToSend = {0};
-  RTC_HandleTypeDef hrtc1;
+//  RTC_HandleTypeDef hrtc1;
   static date_time_t date_time;
-  static const date_time_t date_time_2000 =
-  {
-		  .day = 1,
-		  .month = 1,
-		  .year = 0,
-		  .hour = 0,
-		  .minute = 0,
-		  .second = 0
-  };
 //********************************************************************//
 
 
@@ -358,6 +349,7 @@ typedef struct
 //  static char m_cli_rx_buffer[128];
 //  lwrb_t m_ringbuffer_cli_rx;
   void fakeMac (char *MACstring);
+  void getTimeNow (void);
   static bool m_cli_started = false;
 // ******************************************************************//
 /* USER CODE END Variables */
@@ -609,7 +601,10 @@ void StartDefaultTask(void const * argument)
 //	  }
 //	  lwrb_init (&m_ringbuffer_cli_rx, &m_cli_rx_buffer, sizeof (m_cli_rx_buffer));
   /* Infinite loop */
-
+	  HAL_RTC_GetTime (&hrtc, &sTimeToSend, RTC_FORMAT_BIN);
+	  HAL_RTC_GetDate (&hrtc, &sDateToSend, RTC_FORMAT_BIN);
+	  DEBUG_INFO ("GET TIME: %d: %d: %d \r\n", (uint8_t)(sTimeToSend.Hours), (uint8_t)(sTimeToSend.Minutes),(uint8_t)(sTimeToSend.Seconds));
+	  DEBUG_INFO ("GET date: %d: %d: %d \r\n", (uint8_t)(sDateToSend.Date), (uint8_t)(sDateToSend.Month),(uint8_t)(sDateToSend.Year));
   for(;;)
   {
 //	HAL_GPIO_TogglePin (LED_DONE_GPIO_Port, LED_DONE_Pin);
@@ -694,8 +689,8 @@ void cdc_task(void* params)
 		{
 			if (m_cdc_debug_register == false)
 			{
-				m_cdc_debug_register = true;
-				app_debug_register_callback_print(cdc_tx);
+//				m_cdc_debug_register = true;
+//				app_debug_register_callback_print(cdc_tx);
 			}
 			if (tud_cdc_available())
 			{
@@ -1160,7 +1155,7 @@ bool RS232_tx (void *ctx, uint8_t byte)
 
 void volTest(void)
 {
-	DEBUG_INFO ("VOL TESTING ENTER \r\n");
+	DEBUG_VERBOSE ("VOL TESTING ENTER \r\n");
 	uint8_t res_cnt;
 	uint16_t VolRes[6];
 	for (uint8_t i = 0; i < 6; i ++)
@@ -1168,12 +1163,12 @@ void volTest(void)
 		VolRes [i] = (ADCScan[i]*3300/4095);
 		VolRes [i] = VolRes[i] *2;
 	}
-	DEBUG_INFO ("V4V2 : %d mV\r\n", VolRes [0]);
-	DEBUG_INFO ("VBAT : %d mV\r\n", VolRes [1]);
-	DEBUG_INFO ("V5v : %d mV\r\n", VolRes [2]);
-	DEBUG_INFO ("V3v3 : %d mV\r\n", VolRes [3]);
-	DEBUG_INFO ("V1v8 : %d mV\r\n", VolRes [4]);
-	DEBUG_INFO ("Vsys : %d mV\r\n", VolRes [5]);
+	DEBUG_VERBOSE ("V4V2 : %d mV\r\n", VolRes [0]);
+	DEBUG_VERBOSE ("VBAT : %d mV\r\n", VolRes [1]);
+	DEBUG_VERBOSE ("V5v : %d mV\r\n", VolRes [2]);
+	DEBUG_VERBOSE ("V3v3 : %d mV\r\n", VolRes [3]);
+	DEBUG_VERBOSE ("V1v8 : %d mV\r\n", VolRes [4]);
+	DEBUG_VERBOSE ("Vsys : %d mV\r\n", VolRes [5]);
 	res_cnt = 0;
 	if (voltage_info.v4v2_min <= VolRes[0] && VolRes[0] <= voltage_info.v4v2_max)
 	{
@@ -1233,11 +1228,11 @@ void volTest(void)
 	if (res_cnt == 6)
 	{
 //		return true;
-		DEBUG_INFO ("VOLTAGE OK\r\n");
+		DEBUG_VERBOSE ("VOLTAGE OK\r\n");
 	}
 	else
 	{
-		DEBUG_INFO ("VOLTAGE FAIL \r\n");
+		DEBUG_VERBOSE ("VOLTAGE FAIL \r\n");
 	}
 //	return false;
 }
@@ -1247,22 +1242,22 @@ bool PassTest (jig_value_t * value)
 	if (strlen (value->gsm_imei) >= 15)
 	{
 		test_res.result.sim_ok = 1;
-		DEBUG_INFO ("SIM OK \r\n");
+		DEBUG_VERBOSE ("SIM OK \r\n");
 	}
 	else
 	{
 		test_res.result.sim_ok = 0;
-		DEBUG_INFO ("SIM NOT OK \r\n");
+		DEBUG_VERBOSE ("SIM NOT OK \r\n");
 	}
 	if (25 <= value->temperature && value->temperature <=50)
 	{
 		test_res.result.temper_ok = 1;
-		DEBUG_INFO ("TEMPER IS OK \r\n");
+		DEBUG_VERBOSE ("TEMPER IS OK \r\n");
 	}
 	else
 	{
 		test_res.result.temper_ok = 0;
-		DEBUG_INFO ("TEMPER IS not OK \r\n");
+		DEBUG_VERBOSE ("TEMPER IS not OK \r\n");
 	}
 	if (test_res.result.rs232
 		&& test_res.result.rs485
@@ -1279,7 +1274,7 @@ bool PassTest (jig_value_t * value)
 		)
 	{
 		allPassed = true;
-		DEBUG_INFO ("ALL TEST RESULT PASS \r\n");
+		DEBUG_VERBOSE ("ALL TEST RESULT PASS \r\n");
 		return true;
 	}
 	else
@@ -1323,7 +1318,7 @@ void testing_task (void *arg)
 	};
 	if (m_disk_is_mounted)
 	{
-		DEBUG_INFO ("READ VOLTAGE CONFIG FILE\r\n");
+		DEBUG_VERBOSE ("READ VOLTAGE CONFIG FILE\r\n");
 		uint32_t file_size = fatfs_read_file(test_info_file, (uint8_t*)V_info_buff, sizeof(V_info_buff) - 1);
 		/*
 		 * {vbatmax:4.3,
@@ -1332,8 +1327,8 @@ void testing_task (void *arg)
 		 *
 		 * }
 		 * */
-		DEBUG_INFO ("READ %d byte size\r\n", file_size);
-		DEBUG_INFO ("%s", V_info_buff);
+		DEBUG_VERBOSE ("READ %d byte size\r\n", file_size);
+		DEBUG_VERBOSE ("%s", V_info_buff);
 		if (file_size > 0)
 		{
 			char *ptr = strstr((char*)V_info_buff, "\"vbat_max\":");
@@ -1357,7 +1352,6 @@ void testing_task (void *arg)
 			ptr = strstr((char*)V_info_buff, "\"v1v8_min\":");
 			if (ptr)
 			{
-				DEBUG_INFO ("FOUND 1V8\r\n");
 				ptr+=strlen("\"v1v8_min\":");
 				voltage_info.v1v8_min = utilities_get_number_from_string (0, ptr);
 			}
@@ -1574,8 +1568,8 @@ void testing_task (void *arg)
 				jig_value_t* buff_jig_var;
 				buff_jig_var = (jig_value_t *) pvPortMalloc(sizeof (jig_value_t));
 
-				HAL_RTC_GetTime (&hrtc1, &sTimeToSend, RTC_FORMAT_BIN);
-				HAL_RTC_GetDate (&hrtc1, &sDateToSend, RTC_FORMAT_BIN);
+				HAL_RTC_GetTime (&hrtc, &sTimeToSend, RTC_FORMAT_BIN);
+				HAL_RTC_GetDate (&hrtc, &sDateToSend, RTC_FORMAT_BIN);
 				date_time_buff.day = sDateToSend.Date;
 				date_time_buff.month = sDateToSend.Month;
 				date_time_buff.year = sDateToSend.Year;
@@ -1583,7 +1577,7 @@ void testing_task (void *arg)
 				date_time_buff.minute = sTimeToSend.Minutes;
 				date_time_buff.second = sTimeToSend.Seconds;
 				buff_jig_var->timestamp = convert_date_time_to_second (&date_time_buff);
-				buff_jig_var->timestamp += 946684800; // add time from 1970 to 200
+				buff_jig_var->timestamp += 946684800; // add time from 1970 to 2000
 				DEBUG_INFO ("GET TIME: %d: %d: %d \r\n", (uint8_t)(sTimeToSend.Hours), (uint8_t)(sTimeToSend.Minutes),(uint8_t)(sTimeToSend.Seconds));
 				DEBUG_INFO ("GET date: %d: %d: %d \r\n", (uint8_t)(sDateToSend.Date), (uint8_t)(sDateToSend.Month),(uint8_t)(sDateToSend.Year));
 				DEBUG_ERROR ("CALATED TIME : %u\r\n", buff_jig_var->timestamp);
@@ -1877,7 +1871,7 @@ void lwip_sntp_recv_cb (uint32_t time)
 
 		convert_second_to_date_time (time_buff, &date_time, 1);
 
-		DEBUG_INFO ("TIME NOW IS: %d:%d:%d %d-%d-%d", date_time.hour, date_time.minute, date_time.second, date_time.day,date_time.month, (date_time.year + 2000));
+		DEBUG_INFO ("TIME NOW IS: %d:%d:%d %d-%d-%d\r\n", date_time.hour, date_time.minute, date_time.second, date_time.day,date_time.month, (date_time.year + 2000));
 		sTime.Hours = date_time.hour;
 		sTime.Minutes = date_time.minute;
 		sTime.Seconds = date_time.second;
@@ -1885,8 +1879,8 @@ void lwip_sntp_recv_cb (uint32_t time)
 		sDate.Month = date_time.month;
 		sDate.Date = date_time.day;
 		reInitRTC (sTime,sDate);
-		HAL_RTC_GetTime (&hrtc1, &sTime, RTC_FORMAT_BIN);
-		HAL_RTC_GetDate (&hrtc1, &sDate, RTC_FORMAT_BIN);
+		HAL_RTC_GetTime (&hrtc, &sTime, RTC_FORMAT_BIN);
+		HAL_RTC_GetDate (&hrtc, &sDate, RTC_FORMAT_BIN);
 		DEBUG_INFO ("GET TIME: %d: %d: %d \r\n", (uint8_t)(sTime.Hours), (uint8_t)(sTime.Minutes),(uint8_t)(sTime.Seconds));
 		DEBUG_INFO ("GET date: %d: %d: %d \r\n", (uint8_t)(sDate.Date), (uint8_t)(sDate.Month),(uint8_t)(sDate.Year));
 //		uint32_t timenew = convert_date_time_to_second (&date_time);
@@ -1914,19 +1908,6 @@ void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate)
 {
 	  /** Initialize RTC Only
 	  */
-	  hrtc1.Instance = RTC;
-	  hrtc1.Init.HourFormat = RTC_HOURFORMAT_24;
-	  hrtc1.Init.AsynchPrediv = 127;
-	  hrtc1.Init.SynchPrediv = 255;
-	  hrtc1.Init.OutPut = RTC_OUTPUT_DISABLE;
-	  hrtc1.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
-	  hrtc1.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-	  if (HAL_RTC_Init(&hrtc1) != HAL_OK)
-	  {
-		  DEBUG_ERROR ("CAN'T SET rtc handler \r\n");
-	    Error_Handler();
-	  }
-
 	  /* USER CODE BEGIN Check_RTC_BKUP */
 
 	  /* USER CODE END Check_RTC_BKUP */
@@ -1938,7 +1919,7 @@ void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate)
 //	  sTime.Seconds = 0x0;
 //	  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
 //	  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-	  if (HAL_RTC_SetTime(&hrtc1, &sTime, RTC_FORMAT_BIN) != HAL_OK)
+	  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
 	  {
 		  DEBUG_ERROR ("CAN'T SET TIME \r\n");
 	    Error_Handler();
@@ -1948,7 +1929,7 @@ void reInitRTC ( RTC_TimeTypeDef sTime, RTC_DateTypeDef sDate)
 //	  sDate.Date = 0x12;
 //	  sDate.Year = 0x0;
 
-	  if (HAL_RTC_SetDate(&hrtc1, &sDate, RTC_FORMAT_BIN) != HAL_OK)
+	  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
 	  {
 		  DEBUG_ERROR ("CAN'T SET date \r\n");
 	    Error_Handler();
@@ -2020,7 +2001,16 @@ void fakeMac (char *MACstring)
 // co the fake them cac chi so khac de test.
 	get_jig_info = true;
 }
+void getTimeNow (void)
+{
+	  RTC_TimeTypeDef sTime1 = {0};
+	  RTC_DateTypeDef sDate1= {0};
+	  HAL_RTC_GetTime (&hrtc, &sTime1, RTC_FORMAT_BIN);
+	  HAL_RTC_GetDate (&hrtc, &sDate1, RTC_FORMAT_BIN);
+	  DEBUG_INFO ("GET TIME: %d: %d: %d \r\n", (uint8_t)(sTime1.Hours), (uint8_t)(sTime1.Minutes),(uint8_t)(sTime1.Seconds));
+	  DEBUG_INFO ("GET date: %d: %d: %d \r\n", (uint8_t)(sDate1.Date), (uint8_t)(sDate1.Month),(uint8_t)(sDate1.Year));
 
+}
 int32_t USB_puts(char *msg)
 {
     uint32_t len = strlen(msg);
@@ -2028,5 +2018,6 @@ int32_t USB_puts(char *msg)
 	cdc_tx((uint8_t*)msg, len);
     return len;
 }
+
 /* USER CODE END Application */
 

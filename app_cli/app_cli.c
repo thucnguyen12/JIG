@@ -47,8 +47,9 @@
 //#include "app_audio.h"
 #include "main.h"
 #include "app_debug.h"
-static const char *TAG = "cli";
+//static const char *TAG = "cli";
 extern void fakeMac (char *MACstring);
+extern void getTimeNow (void);
 static app_cli_cb_t *m_cb;
 //static int32_t cli_get_memory(p_shell_context_t context, int32_t argc, char **argv);
 //static int32_t cli_reset(p_shell_context_t context, int32_t argc, char **argv);
@@ -90,9 +91,13 @@ static app_cli_cb_t *m_cb;
 ////    {"setVolume", "\tsetVolume: Change device volume and send to server\r\n", cli_change_device_volume, 1}
 //};
 static int32_t fakeMAC (p_shell_context_t context, int32_t argc, char **argv);
+static int32_t resetChip (p_shell_context_t context, int32_t argc, char **argv);
+static int32_t getTime (p_shell_context_t context, int32_t argc, char **argv);
 static const shell_command_context_t cli_command_table[] =
 {
-		 {"fakeMAC", "\tfakeMAC: create a fake MAC add to test\r\n", fakeMAC, 1}
+		 {"fakeMAC", "\tfakeMAC: create a fake MAC add to test\r\n", fakeMAC, 1},
+		 {"resetChip", "\tresetChip: Call reset function \r\n", resetChip, 0},
+		 {"getTime", "\tgetTime: get time now \r\n", resetChip, 0}
 };
 static shell_context_struct m_user_context;
 static app_cli_cb_t *m_cb;
@@ -130,6 +135,18 @@ static int32_t fakeMAC (p_shell_context_t context, int32_t argc, char **argv)
 		fakeMac (argv[1]);
 	}
 	return 0;
+}
+
+static int32_t resetChip (p_shell_context_t context, int32_t argc, char **argv)
+{
+	NVIC_SystemReset ();
+	 m_cb->printf("system reset done\r\n");
+	return 0;
+}
+
+static int32_t getTime (p_shell_context_t context, int32_t argc, char **argv)
+{
+	void getTimeNow (void);
 }
 /* Reset System */
 //static int32_t cli_get_memory(p_shell_context_t context, int32_t argc, char **argv)

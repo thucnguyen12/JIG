@@ -21,7 +21,7 @@
 #include "rtc.h"
 
 /* USER CODE BEGIN 0 */
-
+#include "app_debug.h"
 /* USER CODE END 0 */
 
 RTC_HandleTypeDef hrtc;
@@ -56,8 +56,9 @@ void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
-  if (HAL_RTCEx_BKUPRead (&hrtc, RTC_BKP_DR1) == 0x1234)
+  if (HAL_RTCEx_BKUPRead (&hrtc, RTC_BKP_DR1) != 0x1234)
   {
+	  DEBUG_INFO ("BK RES IS NOT X1234\r\n");
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date

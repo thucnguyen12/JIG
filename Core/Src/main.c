@@ -109,10 +109,12 @@ int main(void)
   MX_USART3_UART_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
+
   m_lock_debug = xSemaphoreCreateMutex();
   xSemaphoreGive(m_lock_debug);
   app_debug_init(sys_get_ms, lock_debug);
-	app_debug_register_callback_print(rtt_tx);
+  app_debug_register_callback_print(rtt_tx);
+
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
