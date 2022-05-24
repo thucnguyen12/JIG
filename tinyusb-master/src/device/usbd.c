@@ -33,10 +33,11 @@
 #include "device/usbd_pvt.h"
 #include "device/dcd.h"
 
+#include "event_groups.h"
 //--------------------------------------------------------------------+
 // USBD Configuration
 //--------------------------------------------------------------------+
-
+extern EventGroupHandle_t m_wdg_event_group;
 // Debug level of USBD
 #define USBD_DBG   2
 
@@ -615,6 +616,7 @@ void tud_task (void)
         TU_BREAKPOINT();
       break;
     }
+    xEventGroupSetBits(m_wdg_event_group, (1 << 2));
   }
 }
 

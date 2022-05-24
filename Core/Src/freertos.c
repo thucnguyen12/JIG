@@ -61,6 +61,7 @@
 #include "rtc.h"
 #include "time.h"
 #include "app_cli.h"
+#include "iwdg.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -218,7 +219,15 @@ typedef struct
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
+//***************** WATCHDOG TIMER VAR*****************************//
+	EventGroupHandle_t m_wdg_event_group = NULL;
+#define defaultTaskB 	(1 << 0)
+#define cdcTaskB 		(1 << 1)
+#define usbTaskB 		(1 << 2)
+#define flashTaskB 		(1 << 3)
+#define netTaskB 		(1 << 4)
 
+//****************************************************************//
 /**************        BUTTON VAR               ***********/
 	static app_btn_hw_config_t m_button_cfg[] = HW_BTN_CONFIG;
 	static EventGroupHandle_t m_button_event_group = NULL;
@@ -518,7 +527,7 @@ void StartDefaultTask(void const * argument)
 
   m_button_event_group = xEventGroupCreate(); //>>>>>>> CREATE BUTTON EVENT VAR
          ////init lwip
-
+  m_wdg_event_group = xEventGroupCreate();
 
 //*************************** INIT BUTTON APP**********************//
   app_btn_config_t btn_conf;
@@ -627,7 +636,9 @@ void StartDefaultTask(void const * argument)
 //		  uint8_t ch = lwrb_read (&m_ringbuffer_cli_rx, &ch,1);
 ////		  app_cli_poll(ch);
 //	  }
-	  osDelay(10);
+
+	  xEventGroupSetBits(m_wdg_event_group, defaultTaskB);
+	  osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
 }
@@ -732,7 +743,7 @@ void cdc_task(void* params)
 				break;
 			}
 		}
-
+		xEventGroupSetBits(m_wdg_event_group, cdcTaskB);
 		vTaskDelay(pdMS_TO_TICKS(1));
 	}
 }
@@ -756,7 +767,7 @@ void flash_task(void *argument)
 	 DEBUG_INFO ("SEM TOOK \r\n");
 	if (m_disk_is_mounted)
 	{
-		vTaskDelay (200);
+//		vTaskDelay (200);
 		file_size = fatfs_read_file(info_file, (uint8_t*)m_file_address, sizeof(m_file_address) - 1);
 		if (file_size > 0)
 		{
@@ -1000,8 +1011,9 @@ void flash_task(void *argument)
 		}
 		else
 		{
-			DEBUG_INFO ("IN FLASH TASK \r\n");
-			vTaskDelay(4000);
+//			DEBUG_INFO ("IN FLASH TASK \r\n");
+			xEventGroupSetBits(m_wdg_event_group, flashTaskB);
+			vTaskDelay(1);
 		}
 	}
 }
@@ -1058,7 +1070,7 @@ void net_task(void *argument)
 //	m_http_test_started = true;
 	while (!m_ip_assigned)
 		 {
-			 vTaskDelay(100);
+			 vTaskDelay(10);
 		 }
 	  initialize_stnp();
 	  osDelay (1);
@@ -1074,7 +1086,8 @@ void net_task(void *argument)
 //		{
 //			osDelay (10);
 //		}
-			xQueueReceive(httpQueue, &rev_jig_value, portMAX_DELAY);
+			if (xQueueReceive(httpQueue, &rev_jig_value, portMAX_DELAY))
+			{
 			DEBUG_WARN ("GOT THE QUEUE \r\n");
 			len = json_build (rev_jig_value, &(rev_jig_value->test_result), json_send_to_sever);
 			vPortFree(rev_jig_value);
@@ -1090,7 +1103,12 @@ void net_task(void *argument)
 			trans_content_to_body ((uint8_t *) json_send_to_sever, len);
 			DEBUG_INFO ("SEND");
 			app_http_start(&http_cfg,  (int)len);
-			osDelay(100);
+			}
+			else
+			{
+				xEventGroupSetBits(m_wdg_event_group, netTaskB);
+			}
+			osDelay(10);
 	}
 #else
     mqtt_client_cfg_t mqtt_cfg =
@@ -1164,7 +1182,7 @@ bool RS232_tx (void *ctx, uint8_t byte)
 
 void volTest(void)
 {
-	DEBUG_VERBOSE ("VOL TESTING ENTER \r\n");
+	DEBUG_INFO ("VOL TESTING ENTER \r\n");
 	uint8_t res_cnt;
 	uint16_t VolRes[6];
 	for (uint8_t i = 0; i < 6; i ++)
@@ -1172,12 +1190,12 @@ void volTest(void)
 		VolRes [i] = (ADCScan[i]*3300/4095);
 		VolRes [i] = VolRes[i] *2;
 	}
-	DEBUG_VERBOSE ("V4V2 : %d mV\r\n", VolRes [0]);
-	DEBUG_VERBOSE ("VBAT : %d mV\r\n", VolRes [1]);
-	DEBUG_VERBOSE ("V5v : %d mV\r\n", VolRes [2]);
-	DEBUG_VERBOSE ("V3v3 : %d mV\r\n", VolRes [3]);
-	DEBUG_VERBOSE ("V1v8 : %d mV\r\n", VolRes [4]);
-	DEBUG_VERBOSE ("Vsys : %d mV\r\n", VolRes [5]);
+	DEBUG_INFO ("V4V2 : %d mV\r\n", VolRes [0]);
+	DEBUG_INFO ("VBAT : %d mV\r\n", VolRes [1]);
+	DEBUG_INFO ("V5v : %d mV\r\n", VolRes [2]);
+	DEBUG_INFO ("V3v3 : %d mV\r\n", VolRes [3]);
+	DEBUG_INFO ("V1v8 : %d mV\r\n", VolRes [4]);
+	DEBUG_INFO ("Vsys : %d mV\r\n", VolRes [5]);
 	res_cnt = 0;
 	if (voltage_info.v4v2_min <= VolRes[0] && VolRes[0] <= voltage_info.v4v2_max)
 	{
@@ -1237,11 +1255,11 @@ void volTest(void)
 	if (res_cnt == 6)
 	{
 //		return true;
-		DEBUG_VERBOSE ("VOLTAGE OK\r\n");
+		DEBUG_INFO ("VOLTAGE OK\r\n");
 	}
 	else
 	{
-		DEBUG_VERBOSE ("VOLTAGE FAIL \r\n");
+		DEBUG_INFO ("VOLTAGE FAIL \r\n");
 	}
 //	return false;
 }
@@ -1251,22 +1269,22 @@ bool PassTest (jig_value_t * value)
 	if (strlen (value->gsm_imei) >= 15)
 	{
 		test_res.result.sim_ok = 1;
-		DEBUG_VERBOSE ("SIM OK \r\n");
+		DEBUG_INFO ("SIM OK \r\n");
 	}
 	else
 	{
 		test_res.result.sim_ok = 0;
-		DEBUG_VERBOSE ("SIM NOT OK \r\n");
+		DEBUG_INFO ("SIM NOT OK \r\n");
 	}
 	if (25 <= value->temperature && value->temperature <=50)
 	{
 		test_res.result.temper_ok = 1;
-		DEBUG_VERBOSE ("TEMPER IS OK \r\n");
+		DEBUG_INFO ("TEMPER IS OK \r\n");
 	}
 	else
 	{
 		test_res.result.temper_ok = 0;
-		DEBUG_VERBOSE ("TEMPER IS not OK \r\n");
+		DEBUG_INFO ("TEMPER IS not OK \r\n");
 	}
 	if (test_res.result.rs232
 		&& test_res.result.rs485
@@ -1283,7 +1301,7 @@ bool PassTest (jig_value_t * value)
 		)
 	{
 		allPassed = true;
-		DEBUG_VERBOSE ("ALL TEST RESULT PASS \r\n");
+		DEBUG_INFO ("ALL TEST RESULT PASS \r\n");
 		return true;
 	}
 	else
@@ -1327,7 +1345,7 @@ void testing_task (void *arg)
 	};
 	if (m_disk_is_mounted)
 	{
-		DEBUG_VERBOSE ("READ VOLTAGE CONFIG FILE\r\n");
+		DEBUG_INFO ("READ VOLTAGE CONFIG FILE\r\n");
 		uint32_t file_size = fatfs_read_file(test_info_file, (uint8_t*)V_info_buff, sizeof(V_info_buff) - 1);
 		/*
 		 * {vbatmax:4.3,
@@ -1336,8 +1354,8 @@ void testing_task (void *arg)
 		 *
 		 * }
 		 * */
-		DEBUG_VERBOSE ("READ %d byte size\r\n", file_size);
-		DEBUG_VERBOSE ("%s", V_info_buff);
+		DEBUG_INFO ("READ %d byte size\r\n", file_size);
+		DEBUG_INFO ("%s", V_info_buff);
 		if (file_size > 0)
 		{
 			char *ptr = strstr((char*)V_info_buff, "\"vbat_max\":");
@@ -1427,6 +1445,16 @@ void testing_task (void *arg)
 	{
 //		DEBUG_INFO ("ENTER TESTING LOOP \r\n");
 		uint32_t now = HAL_GetTick();
+		uint8_t ch;
+		if (lwrb_read(&m_ringbuffer_host_rx, &ch, 1))
+		{
+			min_rx_feed(&m_min_context, &ch, 1);
+		}
+		else
+		{
+
+			min_timeout_poll(&m_min_context);
+		}
 		if(1)//HAL_GPIO_ReadPin(MODE1_GPIO_Port, MODE1_Pin) && HAL_GPIO_ReadPin(MODE2_GPIO_Port, MODE2_Pin))//xet trang thai bit gat
 		{
 			if(idle_detect)
@@ -1442,16 +1470,7 @@ void testing_task (void *arg)
 					}
 				}
 			}
-			uint8_t ch;
-			if (lwrb_read(&m_ringbuffer_host_rx, &ch, 1))
-			{
-				min_rx_feed(&m_min_context, &ch, 1);
-			}
-			else
-			{
 
-				min_timeout_poll(&m_min_context);
-			}
 			if (get_jig_info)
 			{
 					DEBUG_INFO ("GET EOF START CHECK MAC \r\n");
@@ -1475,7 +1494,7 @@ void testing_task (void *arg)
 					else
 					{
 
-						DEBUG_INFO ("MAC STILL THE SAME, UPDATE \r\n");
+						DEBUG_WARN ("MAC STILL THE SAME, UPDATE \r\n");
 						if (allPassed)
 						{
 							break;
@@ -1614,6 +1633,16 @@ void testing_task (void *arg)
 				last_vol_tick = now;
 			}
 		}
+		 EventBits_t uxBits = xEventGroupWaitBits(m_wdg_event_group,
+				defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB,
+										pdTRUE,
+										pdTRUE,
+										5);
+		 if ((uxBits & (defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB)) == (defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB))
+		 {
+			 HAL_IWDG_Refresh(&hiwdg);
+		 }
+//		DEBUG_INFO ("FEED WDG\r\n");
 		osDelay (1);
 	}
 }
