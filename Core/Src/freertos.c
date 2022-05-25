@@ -214,7 +214,7 @@ typedef struct
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+static EventBits_t uxBits;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -638,7 +638,7 @@ void StartDefaultTask(void const * argument)
 //	  }
 
 	  xEventGroupSetBits(m_wdg_event_group, defaultTaskB);
-	  osDelay(1);
+	  osDelay(10);
   }
   /* USER CODE END StartDefaultTask */
 }
@@ -744,6 +744,7 @@ void cdc_task(void* params)
 			}
 		}
 		xEventGroupSetBits(m_wdg_event_group, cdcTaskB);
+//		DEBUG_INFO ("CDC TASK \r\n");
 		vTaskDelay(pdMS_TO_TICKS(1));
 	}
 }
@@ -1013,7 +1014,7 @@ void flash_task(void *argument)
 		{
 //			DEBUG_INFO ("IN FLASH TASK \r\n");
 			xEventGroupSetBits(m_wdg_event_group, flashTaskB);
-			vTaskDelay(1);
+			vTaskDelay(10);
 		}
 	}
 }
@@ -1086,7 +1087,8 @@ void net_task(void *argument)
 //		{
 //			osDelay (10);
 //		}
-			if (xQueueReceive(httpQueue, &rev_jig_value, portMAX_DELAY))
+
+			if (xQueueReceive(httpQueue, &rev_jig_value, 10) == (BaseType_t)1)
 			{
 			DEBUG_WARN ("GOT THE QUEUE \r\n");
 			len = json_build (rev_jig_value, &(rev_jig_value->test_result), json_send_to_sever);
@@ -1106,6 +1108,7 @@ void net_task(void *argument)
 			}
 			else
 			{
+
 				xEventGroupSetBits(m_wdg_event_group, netTaskB);
 			}
 			osDelay(10);
@@ -1182,7 +1185,7 @@ bool RS232_tx (void *ctx, uint8_t byte)
 
 void volTest(void)
 {
-	DEBUG_INFO ("VOL TESTING ENTER \r\n");
+	DEBUG_VERBOSE ("VOL TESTING ENTER \r\n");
 	uint8_t res_cnt;
 	uint16_t VolRes[6];
 	for (uint8_t i = 0; i < 6; i ++)
@@ -1190,12 +1193,12 @@ void volTest(void)
 		VolRes [i] = (ADCScan[i]*3300/4095);
 		VolRes [i] = VolRes[i] *2;
 	}
-	DEBUG_INFO ("V4V2 : %d mV\r\n", VolRes [0]);
-	DEBUG_INFO ("VBAT : %d mV\r\n", VolRes [1]);
-	DEBUG_INFO ("V5v : %d mV\r\n", VolRes [2]);
-	DEBUG_INFO ("V3v3 : %d mV\r\n", VolRes [3]);
-	DEBUG_INFO ("V1v8 : %d mV\r\n", VolRes [4]);
-	DEBUG_INFO ("Vsys : %d mV\r\n", VolRes [5]);
+	DEBUG_VERBOSE ("V4V2 : %d mV\r\n", VolRes [0]);
+	DEBUG_VERBOSE ("VBAT : %d mV\r\n", VolRes [1]);
+	DEBUG_VERBOSE ("V5v : %d mV\r\n", VolRes [2]);
+	DEBUG_VERBOSE ("V3v3 : %d mV\r\n", VolRes [3]);
+	DEBUG_VERBOSE ("V1v8 : %d mV\r\n", VolRes [4]);
+	DEBUG_VERBOSE ("Vsys : %d mV\r\n", VolRes [5]);
 	res_cnt = 0;
 	if (voltage_info.v4v2_min <= VolRes[0] && VolRes[0] <= voltage_info.v4v2_max)
 	{
@@ -1255,11 +1258,11 @@ void volTest(void)
 	if (res_cnt == 6)
 	{
 //		return true;
-		DEBUG_INFO ("VOLTAGE OK\r\n");
+		DEBUG_VERBOSE ("VOLTAGE OK\r\n");
 	}
 	else
 	{
-		DEBUG_INFO ("VOLTAGE FAIL \r\n");
+		DEBUG_VERBOSE ("VOLTAGE FAIL \r\n");
 	}
 //	return false;
 }
@@ -1269,22 +1272,22 @@ bool PassTest (jig_value_t * value)
 	if (strlen (value->gsm_imei) >= 15)
 	{
 		test_res.result.sim_ok = 1;
-		DEBUG_INFO ("SIM OK \r\n");
+		DEBUG_VERBOSE ("SIM OK \r\n");
 	}
 	else
 	{
 		test_res.result.sim_ok = 0;
-		DEBUG_INFO ("SIM NOT OK \r\n");
+		DEBUG_VERBOSE ("SIM NOT OK \r\n");
 	}
 	if (25 <= value->temperature && value->temperature <=50)
 	{
 		test_res.result.temper_ok = 1;
-		DEBUG_INFO ("TEMPER IS OK \r\n");
+		DEBUG_VERBOSE ("TEMPER IS OK \r\n");
 	}
 	else
 	{
 		test_res.result.temper_ok = 0;
-		DEBUG_INFO ("TEMPER IS not OK \r\n");
+		DEBUG_VERBOSE ("TEMPER IS not OK \r\n");
 	}
 	if (test_res.result.rs232
 		&& test_res.result.rs485
@@ -1301,7 +1304,7 @@ bool PassTest (jig_value_t * value)
 		)
 	{
 		allPassed = true;
-		DEBUG_INFO ("ALL TEST RESULT PASS \r\n");
+		DEBUG_VERBOSE ("ALL TEST RESULT PASS \r\n");
 		return true;
 	}
 	else
@@ -1345,7 +1348,7 @@ void testing_task (void *arg)
 	};
 	if (m_disk_is_mounted)
 	{
-		DEBUG_INFO ("READ VOLTAGE CONFIG FILE\r\n");
+		DEBUG_VERBOSE ("READ VOLTAGE CONFIG FILE\r\n");
 		uint32_t file_size = fatfs_read_file(test_info_file, (uint8_t*)V_info_buff, sizeof(V_info_buff) - 1);
 		/*
 		 * {vbatmax:4.3,
@@ -1354,8 +1357,8 @@ void testing_task (void *arg)
 		 *
 		 * }
 		 * */
-		DEBUG_INFO ("READ %d byte size\r\n", file_size);
-		DEBUG_INFO ("%s", V_info_buff);
+		DEBUG_VERBOSE ("READ %d byte size\r\n", file_size);
+		DEBUG_VERBOSE ("%s", V_info_buff);
 		if (file_size > 0)
 		{
 			char *ptr = strstr((char*)V_info_buff, "\"vbat_max\":");
@@ -1633,17 +1636,18 @@ void testing_task (void *arg)
 				last_vol_tick = now;
 			}
 		}
-		 EventBits_t uxBits = xEventGroupWaitBits(m_wdg_event_group,
+			uxBits = xEventGroupWaitBits(m_wdg_event_group,
 				defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB,
 										pdTRUE,
 										pdTRUE,
-										5);
+										10);
+
 		 if ((uxBits & (defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB)) == (defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB))
 		 {
 			 HAL_IWDG_Refresh(&hiwdg);
 		 }
-//		DEBUG_INFO ("FEED WDG\r\n");
-		osDelay (1);
+
+
 	}
 }
 //***************************************************************//
