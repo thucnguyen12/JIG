@@ -158,4 +158,120 @@ int32_t fatfs_get_file_size(const char *file)
 end:
     return size;
 }
+
+uint32_t fatfs_write_to_a_file (const char* file, char* buff, uint32_t size)
+{
+	UINT byte_write = 0;
+	// step1 : check co file hay ko
+	// neu co thi xoa file
+	// ghi vao file
+	fresult = f_open(&USERFile, file, FA_CREATE_ALWAYS);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
+		goto end;
+	}
+	f_close(&USERFile);
+
+	fresult = f_open(&USERFile, file, FA_WRITE);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
+		goto end;
+	}
+
+	fresult = f_lseek(&USERFile, f_size(&USERFile));
+	if (FR_OK != fresult)
+	{
+		DEBUG_ERROR(" Seek file %s at 0 failed\r\n", file);
+		f_close(&USERFile);
+		goto end;
+	}
+
+	fresult = f_write (&USERFile, buff, size, &byte_write);
+	if (fresult != FR_OK)
+	{
+		DEBUG_INFO ("ERROR %d", fresult);
+		DEBUG_ERROR ("WRITE FILE %s FAIL", file);
+		f_close(&USERFile);
+		goto end;
+
+	}
+	f_close(&USERFile);
+	end:
+	    return byte_write;
+}
+uint8_t check_file (const char* file)
+{
+	FRESULT fr;
+	FILINFO fno;
+	fr = f_stat (file, &fno);
+	switch (fr)
+	{
+	case FR_OK:
+		DEBUG_INFO ("THERE IS FILE %s\r\n", file);
+		return 0;
+
+	case FR_NO_FILE:
+//		DEBUG_INFO ("NO FILE %s\r\n", file);
+		return 1;
+	default:
+		DEBUG_ERROR ("AN ERROR OCCURED\r\n");
+		return 2;
+	}
+}
+void delete_a_file (const char * file)
+{
+	fresult = f_unlink (file);
+}
+//FILINFO scan_files (char* pat)
+//{
+//    DIR dir;
+//    UINT i;
+//    FILINFO fno;
+//    static char buffer[128];
+//    char path[20];
+//    sprintf (path, "%s",pat);
+//
+//    fresult = f_opendir(&dir, path);                       /* Open the directory */
+//    if (fresult == FR_OK)
+//    {
+//        for (;;)
+//        {
+//            fresult = f_readdir(&dir, &fno);                   /* Read a directory item */
+//            if (fresult != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+//            if (fno.fattrib & AM_DIR)     /* It is a directory */
+//            {
+//
+//            	if (!(strcmp ("SYSTEM~1", fno.fname))) continue;
+//            	DEBUG_INFO ("FIND A DIR \r\n");
+////            	sprintf (buffer, "Dir: %s\r\n", fno.fname);
+////            	send_uart(buffer);
+////                i = strlen(path);
+////                sprintf(&path[i], "/%s", fno.fname);
+//                fresult = scan_files(path);                     /* Enter the directory */
+//                if (fresult != FR_OK) break;
+//                path[i] = 0;
+//            }
+//            else
+//            {                                       /* It is a file. */
+//               sprintf(buffer,"File: %s/%s\n", path, fno.fname);
+////               send_uart(buffer);
+//               DEBUG_INFO ("%s\r\n", buffer);
+//
+//            }
+//        }
+//        f_closedir(&dir);
+//    }
+//    return fresult;
+//}
+FRESULT create_a_dir (const char * path)
+{
+	fresult = f_mkdir (path);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR ("ERROR IN CREAT DIR\r\n");
+	}
+}
+
 /* USER CODE END Application */

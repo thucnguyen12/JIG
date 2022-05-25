@@ -65,6 +65,7 @@
 /* Exported functions ------------------------------------------------------- */
 void ethernet_link_status_updated(struct netif *netif);
 void Ethernet_Link_Periodic_Handle(struct netif *netif);
+bool eth_is_cable_connected(struct netif *netif);
 #if LWIP_DHCP
 
 void DHCP_Thread(void const * argument);

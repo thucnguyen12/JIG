@@ -102,6 +102,12 @@ static const uint8_t day_in_month[12] = {31, 29, 31, 30, 31, 30, 31, 31, 30, 31,
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+typedef enum
+{
+	NOT_CONNECTED,
+	CONNECT,
+	ETHERNET_CONNECTED
+} ETHERNET_STATE;
 typedef union
 {
 	struct
@@ -423,6 +429,11 @@ static void initialize_stnp(void);
 
 static uint32_t convert_date_time_to_second(date_time_t *t);
 //*************************************************//
+
+//*******************fatfs var********************//
+FILINFO fno;
+FRESULT fre;  // result
+
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -701,7 +712,7 @@ void cdc_task(void* params)
 			if (m_cdc_debug_register == false)
 			{
 				m_cdc_debug_register = true;
-				app_debug_register_callback_print(cdc_tx);
+//				app_debug_register_callback_print(cdc_tx);
 			}
 			if (tud_cdc_available())
 			{
@@ -1069,49 +1080,223 @@ void net_task(void *argument)
 //	xSemaphoreTake(hHttpStart, portMAX_DELAY);
 //	DEBUG_INFO ("PASS SEM TAKE \r\n");
 //	m_http_test_started = true;
-	while (!m_ip_assigned)
-		 {
-			 vTaskDelay(10);
-		 }
-	  initialize_stnp();
-	  osDelay (1);
+//	while (!m_ip_assigned)
+//		 {
+//			 vTaskDelay(10);
+//		 }
+//	  initialize_stnp();
+//	  osDelay (1);
 //	DEBUG_WARN ("GOT IP START TO SEND!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
 #if 1
 	// http://httpbin.org/get
-	jig_value_t* rev_jig_value;
 
+	jig_value_t* rev_jig_value;
+	app_http_config_t http_cfg;
 	uint16_t len;
+	ETHERNET_STATE e_state = NOT_CONNECTED;
+	char file_name [64];
 	for (;;)
 	{
-//		while(m_http_test_started == false)
-//		{
-//			osDelay (10);
-//		}
-
-			if (xQueueReceive(httpQueue, &rev_jig_value, 10) == (BaseType_t)1)
+		switch (e_state)
+		{
+		case NOT_CONNECTED:
+			if (m_ip_assigned) e_state = CONNECT;
+			xEventGroupSetBits(m_wdg_event_group, netTaskB);
+			break;
+		case CONNECT:
+			initialize_stnp();
+			if (check_file ("offline_test") == 1)
 			{
-			DEBUG_WARN ("GOT THE QUEUE \r\n");
+				fre = create_a_dir ("offline_test");
+			}
+			//scan file sequence
+			{
+				DIR dir;
+				UINT i;
+				char path[20];
+				sprintf (path, "%s","offline_test");
+				fre = f_opendir(&dir, path);
+				if (fre == FR_OK)
+				{
+					DEBUG_INFO ("OPEN DIR OK\r\n");
+//					for (;;)
+//					{
+//						fre = f_readdir(&dir, &fno);                   /* Read a directory item */
+//						if (fre != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+//						if (fno.fattrib & AM_DIR)     /* It is a directory */
+//						{
+//							if (!(strcmp ("SYSTEM~1", fno.fname))) continue;
+////							i = strlen(path);
+////							sprintf(&path[i], "/%s", fno.fname);
+//////							fre = scan_files(path);                     /* Enter the directory */
+//////							if (fre != FR_OK) break;
+////							path[i] = 0;
+//						}
+//						else
+//						{                                       /* It is a file. */
+//						   if (!check_file (fno.fname))
+//						   {
+//							   len = fatfs_read_file (fno.fname, (uint8_t *)json_send_to_sever, 1024);
+//								if (len)
+//								{
+//									DEBUG_INFO ("json from file: %s\r\n", json_send_to_sever);
+//									sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
+//									http_cfg.port = 80;
+//									sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
+//									http_cfg.on_event_cb = (void*)0;
+//									http_cfg.method = APP_HTTP_POST;
+//									trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+//									DEBUG_INFO ("SEND");
+//									app_http_start(&http_cfg,  (int)len);
+//									delete_a_file (fno.fname);
+//									DEBUG_INFO ("SEND OFFLINE FILE\r\n");
+//								}
+//						   }
+//						}
+//					}
+					f_closedir(&dir);
+				}
+			}
+
+//			if(!check_file ("offline_file"))
+//			{
+//				len = fatfs_read_file ("offline_file", (uint8_t *)json_send_to_sever, 1024);
+//				if (len)
+//				{
+//					DEBUG_INFO ("json from file: %s\r\n", json_send_to_sever);
+//					sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
+//					http_cfg.port = 80;
+//					sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
+//					http_cfg.on_event_cb = (void*)0;
+//					http_cfg.method = APP_HTTP_POST;
+//					trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+//					DEBUG_INFO ("SEND");
+//					app_http_start(&http_cfg,  (int)len);
+//					delete_a_file ("offline_file");
+//					DEBUG_INFO ("SEND OFFLINE FILE\r\n");
+//				}
+//			}
+			e_state = ETHERNET_CONNECTED;
+			break;
+		case ETHERNET_CONNECTED:
+			if (!eth_is_cable_connected (&g_netif) )
+			{
+				e_state = NOT_CONNECTED;
+				m_ip_assigned = false;
+			}
+			break;
+		default:
+			break;
+		}
+		if (xQueueReceive(httpQueue, &rev_jig_value, 10) == (BaseType_t)1)
+		{
 			len = json_build (rev_jig_value, &(rev_jig_value->test_result), json_send_to_sever);
 			vPortFree(rev_jig_value);
-
-			DEBUG_INFO ("%s", json_send_to_sever);
-			m_http_test_started = true;
-			app_http_config_t http_cfg;
-			sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
-			http_cfg.port = 80;
-			sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
-			http_cfg.on_event_cb = (void*)0;
-			http_cfg.method = APP_HTTP_POST;
-			trans_content_to_body ((uint8_t *) json_send_to_sever, len);
-			DEBUG_INFO ("SEND");
-			app_http_start(&http_cfg,  (int)len);
+			if (eth_is_cable_connected (&g_netif) )
+			{
+				sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
+				http_cfg.port = 80;
+				sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
+				http_cfg.on_event_cb = (void*)0;
+				http_cfg.method = APP_HTTP_POST;
+				trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+				app_http_start(&http_cfg,  (int)len);
 			}
 			else
 			{
+				if (check_file ("offline_test") == 1)
+				{
+					create_a_dir ("offline_test");
+				}
+				{
+				DIR dir;
+				UINT i;
+				fre = f_opendir(&dir, "offline_test");
+				if (fre == FR_OK)
+				{
+					RTC_DateTypeDef sDateWriteFile = {0};
+					HAL_RTC_GetDate (&hrtc, &sDateWriteFile, RTC_FORMAT_BIN);
+					sprintf (file_name, "offline_test/test%d-%d-%d", sDateWriteFile.Date, sDateWriteFile.Month, sDateWriteFile.Year);
+					uint32_t byte_write = fatfs_write_to_a_file (file_name, json_send_to_sever, (uint32_t)len);
+					if (byte_write == len)
+					{
+						DEBUG_INFO ("WRITE FILE OK \r\n");
+					}
+					else
+					{
+						DEBUG_ERROR ("WRITE FILE ERROR \r\n");
+					}
 
-				xEventGroupSetBits(m_wdg_event_group, netTaskB);
+					f_closedir(&dir);
+				}
+				}
+//				uint32_t byte_write = fatfs_write_to_a_file ("offline_file", json_send_to_sever, (uint32_t)len);
+//				if (byte_write == len)
+//				{
+//					DEBUG_INFO ("WRITE FILE OK \r\n");
+//				}
+//				else
+//				{
+//					DEBUG_ERROR ("WRITE FILE ERROR \r\n");
+//				}
 			}
-			osDelay(10);
+			xEventGroupSetBits(m_wdg_event_group, netTaskB);
+		}
+		else
+		{
+			xEventGroupSetBits(m_wdg_event_group, netTaskB);
+		}
+		osDelay (10);
+//		if (eth_is_cable_connected (&g_netif) )
+//		{
+////			DEBUG_INFO ("NOW ONLINE \r\n");
+//			if(!check_file ("offline_file"))
+//			{
+//				len = fatfs_read_file ("offline_file", json_send_to_sever, 1024);
+//				sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
+//				http_cfg.port = 80;
+//				sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
+//				http_cfg.on_event_cb = (void*)0;
+//				http_cfg.method = APP_HTTP_POST;
+//				trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+//				DEBUG_INFO ("SEND");
+//				app_http_start(&http_cfg,  (int)len);
+//				delete_a_file ("offline_file");
+//				DEBUG_INFO ("SEND OFFLINE FILE\r\n");
+//			}
+//		}
+////		else
+////		{
+//////			DEBUG_INFO ("NOW OFFLINE \r\n");
+////		}
+//			if (xQueueReceive(httpQueue, &rev_jig_value, 10) == (BaseType_t)1)
+//			{
+//			DEBUG_WARN ("GOT THE QUEUE \r\n");
+//			len = json_build (rev_jig_value, &(rev_jig_value->test_result), json_send_to_sever);
+//			vPortFree(rev_jig_value);
+//			DEBUG_INFO ("%s\r\n", json_send_to_sever);
+//			if (!eth_is_cable_connected (&g_netif) )
+//			{
+//
+//			}
+//
+//			m_http_test_started = true;
+//			//app_http_config_t http_cfg;
+//			sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
+//			http_cfg.port = 80;
+//			sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
+//			http_cfg.on_event_cb = (void*)0;
+//			http_cfg.method = APP_HTTP_POST;
+//			trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+//			DEBUG_INFO ("SEND");
+//			app_http_start(&http_cfg,  (int)len);
+//			}
+//			else
+//			{
+//
+//				xEventGroupSetBits(m_wdg_event_group, netTaskB);
+//			}
+//			osDelay(10);
 	}
 #else
     mqtt_client_cfg_t mqtt_cfg =
@@ -1611,7 +1796,7 @@ void testing_task (void *arg)
 				buff_jig_var->timestamp += 946684800; // add time from 1970 to 2000
 				DEBUG_INFO ("GET TIME: %d: %d: %d \r\n", (uint8_t)(sTimeToSend.Hours), (uint8_t)(sTimeToSend.Minutes),(uint8_t)(sTimeToSend.Seconds));
 				DEBUG_INFO ("GET date: %d: %d: %d \r\n", (uint8_t)(sDateToSend.Date), (uint8_t)(sDateToSend.Month),(uint8_t)(sDateToSend.Year));
-				DEBUG_ERROR ("CALATED TIME : %u\r\n", buff_jig_var->timestamp);
+				DEBUG_WARN ("CALCULATED TIME : %u\r\n", buff_jig_var->timestamp);
 
 				buff_jig_var->device_type = to_send_value->device_type;
 				memcpy (buff_jig_var->fw_version, to_send_value->fw_version, 3);
@@ -1622,7 +1807,7 @@ void testing_task (void *arg)
 				buff_jig_var->peripheral.value = to_send_value->peripheral.value;
 				buff_jig_var->test_result.value = test_res.value;
 				xQueueSend (httpQueue, &buff_jig_var, 0);
-				DEBUG_WARN ("READY TO SEND TO SEVER \r\n");
+				DEBUG_WARN ("SEND queue \r\n");
 			}
 			if ((now - last_tick) > 500 )
 			{
@@ -1987,10 +2172,10 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 //	strcat (json_str, json_strbuff);
 //	sprintf (json_str_buff, "\"day test\": %d:%d:%d,\r\n", 			day, month, year);
 //	strcat (json_str, json_strbuff);
-	index += sprintf (json_str+index, "[{\"timestamp\":%lu,", 			value ->timestamp);
+	index += sprintf (json_str+index, "[{\"timestamp\":%lu,", 				value ->timestamp);
 	index += sprintf (json_str+index, "\"DeviceType\":\"%s\",", 			value ->device_type ? "B02":"B01");
-	index += sprintf (json_str+index, "\"FirmwareVersion\":\"%d.%d.%d\",",value ->fw_version[0],value ->fw_version[1],value ->fw_version[2] );
-	index += sprintf (json_str+index, "\"HardwardVersion\":\"%d.%d.%d\",",value ->hw_version[0],value ->hw_version[1],value ->hw_version[2] );
+	index += sprintf (json_str+index, "\"FirmwareVersion\":\"%d.%d.%d\",",	value ->fw_version[0],value ->fw_version[1],value ->fw_version[2] );
+	index += sprintf (json_str+index, "\"HardwardVersion\":\"%d.%d.%d\",",	value ->hw_version[0],value ->hw_version[1],value ->hw_version[2] );
 	index += sprintf (json_str+index, "\"GsmIMEI\":\"%s\",", 				value ->gsm_imei);
 	sprintf (mac_str, "%02x:%02x:%02x:%02x:%02x:%02x",	value->mac[0],
 														value->mac[1],
@@ -1999,37 +2184,37 @@ int16_t json_build(jig_value_t *value, func_test_t * test, char *json_str)
 														value->mac[4],
 														value->mac[5]);
 //	make_string_from_mac (mac_str);
-	index += sprintf (json_str+index, "\"MacJIG\":\"%s\",", 						mac_str);
+	index += sprintf (json_str+index, "\"MacJIG\":\"%s\",", 			mac_str);
 	index += sprintf (json_str+index, "\"ErrorResults\":{");
-	index += sprintf (json_str+index, "\"sim\":%s,", 						test->result.sim_ok ? "true" : "false");
-	index += sprintf (json_str+index, "\"vGsm4V2\":%s,", 					test ->result.vgsm4v2_ok ? "true" : "false");
-	index += sprintf (json_str+index, "\"eth\":%s,", 						value ->peripheral.name.eth ? "true" : "false");
-	index += sprintf (json_str+index, "\"wifi\":%s,", 						value ->peripheral.name.wifi ? "true" : "false");
-	index += sprintf (json_str+index, "\"server\":%s,", 						value ->peripheral.name.server ? "true" : "false");
+	index += sprintf (json_str+index, "\"sim\":%s,", 					test->result.sim_ok ? "true" : "false");
+	index += sprintf (json_str+index, "\"vGsm4V2\":%s,", 				test ->result.vgsm4v2_ok ? "true" : "false");
+	index += sprintf (json_str+index, "\"eth\":%s,", 					value ->peripheral.name.eth ? "true" : "false");
+	index += sprintf (json_str+index, "\"wifi\":%s,", 					value ->peripheral.name.wifi ? "true" : "false");
+	index += sprintf (json_str+index, "\"server\":%s,", 				value ->peripheral.name.server ? "true" : "false");
 //	sprintf (json_str_buff, "\"GSM status\":%d,\r\n", 				value ->peripheral.name.gsm);
 
-	index += sprintf (json_str+index, "\"mainPower\":%s,", 					value ->peripheral.name.main_power_pass ? "true" : "false");
-	index += sprintf (json_str+index, "\"backupPower\":%s,", 				value ->peripheral.name.backup_power_pass? "true" : "false");
-	index += sprintf (json_str+index, "\"buttonTest\":%s,", 				value ->peripheral.name.button_pass? "true" : "false");
-	index += sprintf (json_str+index, "\"input\":[%s,%s,%s,%s],",			value->peripheral.name.input0_pass ? "true" : "false",\
-																				value->peripheral.name.input1_pass ? "true" : "false",\
-																				value->peripheral.name.input2_pass ? "true" : "false",\
-																				value->peripheral.name.input3_pass ? "true" : "false");
-	index += sprintf (json_str+index, "\"temperature\":%s,", 				test->result.temper_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"charge\":%s,", 					test->result.charge_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"alarmIn\":%s,", 					test->result.alarm_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"faultIn\":%s,", 					test->result.fault_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"sosButton\":%s,", 					test->result.sosButton_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"relay0\":%s,", 					test->result.relay0_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"relay1\":%s,", 					test->result.relay1_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"watchdog\":%s,", 					test->result.test_wd_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"v4v2\":%s,", 						test->result.vgsm4v2_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"vbat\":%s,", 						test->result.vbat_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"v1v8\":%s,", 						test->result.v1v8_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"v3v3\":%s,", 						test->result.v3v3_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"v5v\":%s,", 						test->result.v5v_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"vsys\":%s,", 						test->result.vsys_ok? "true" : "false");
-	index += sprintf (json_str+index, "\"allPassed\":%s}}]", 	allPassed? "true" : "false");
+	index += sprintf (json_str+index, "\"mainPower\":%s,", 				value ->peripheral.name.main_power_pass ? "true" : "false");
+	index += sprintf (json_str+index, "\"backupPower\":%s,", 			value ->peripheral.name.backup_power_pass? "true" : "false");
+	index += sprintf (json_str+index, "\"buttonTest\":%s,", 			value ->peripheral.name.button_pass? "true" : "false");
+	index += sprintf (json_str+index, "\"input1\":%s,",					value->peripheral.name.input0_pass ? "true" : "false");
+	index += sprintf (json_str+index, "\"input2\":%s,",					value->peripheral.name.input1_pass ? "true" : "false");
+	index += sprintf (json_str+index, "\"input3\":%s,",					value->peripheral.name.input2_pass ? "true" : "false");
+	index += sprintf (json_str+index, "\"input4\":%s,",					value->peripheral.name.input3_pass ? "true" : "false");
+	index += sprintf (json_str+index, "\"temperature\":%s,", 			test->result.temper_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"charge\":%s,", 				test->result.charge_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"alarmIn\":%s,", 				test->result.alarm_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"faultIn\":%s,", 				test->result.fault_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"sosButton\":%s,", 				test->result.sosButton_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"relay0\":%s,", 				test->result.relay0_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"relay1\":%s,", 				test->result.relay1_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"watchdog\":%s,", 				test->result.test_wd_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"v4v2\":%s,", 					test->result.vgsm4v2_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"vbat\":%s,", 					test->result.vbat_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"v1v8\":%s,", 					test->result.v1v8_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"v3v3\":%s,", 					test->result.v3v3_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"v5v\":%s,", 					test->result.v5v_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"vsys\":%s,", 					test->result.vsys_ok? "true" : "false");
+	index += sprintf (json_str+index, "\"allPassed\":%s}}]", 			allPassed? "true" : "false");
 	return index;
 }
 //********************************************************************//
@@ -2040,6 +2225,19 @@ void fakeMac (char *MACstring)
 	{
 		MAC [i] = (uint8_t) MACstring [i];
 	}
+	to_send_value ->device_type = 1;
+	to_send_value ->fw_version[0] = 0;
+	to_send_value ->fw_version [1] = 0;
+	to_send_value ->fw_version [2] = 1;
+	to_send_value ->hw_version [0] = 0;
+	to_send_value ->hw_version [1] = 0;
+	to_send_value ->hw_version [2] = 0;
+	to_send_value ->gsm_imei[16] = 1;
+	to_send_value ->sim_imei[16] = 1;
+	to_send_value ->temperature = 12;
+	to_send_value ->test_result.value = 23142412;
+	to_send_value ->peripheral.value = 1238;
+
 // co the fake them cac chi so khac de test.
 	get_jig_info = true;
 }
@@ -2060,6 +2258,44 @@ int32_t USB_puts(char *msg)
 	cdc_tx((uint8_t*)msg, len);
     return len;
 }
+
+//FRESULT scan_files (char* pat)
+//{
+//    DIR dir;
+//    UINT i;
+//
+//    char path[20];
+//    sprintf (path, "%s",pat);
+//
+//    fresult = f_opendir(&dir, path);                       /* Open the directory */
+//    if (fresult == FR_OK)
+//    {
+//        for (;;)
+//        {
+//            fresult = f_readdir(&dir, &fno);                   /* Read a directory item */
+//            if (fresult != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+//            if (fno.fattrib & AM_DIR)     /* It is a directory */
+//            {
+//            	if (!(strcmp ("SYSTEM~1", fno.fname))) continue;
+////            	sprintf (buffer, "Dir: %s\r\n", fno.fname);
+////            	send_uart(buffer);
+//                i = strlen(path);
+//                sprintf(&path[i], "/%s", fno.fname);
+//                fresult = scan_files(path);                     /* Enter the directory */
+//                if (fresult != FR_OK) break;
+//                path[i] = 0;
+//            }
+//            else
+//            {                                       /* It is a file. */
+//               sprintf(buffer,"File: %s/%s\n", path, fno.fname);
+//
+////               send_uart(buffer);
+//            }
+//        }
+//        f_closedir(&dir);
+//    }
+//    return fresult;
+//}
 
 /* USER CODE END Application */
 
