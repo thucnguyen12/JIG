@@ -166,7 +166,7 @@ uint32_t fatfs_write_to_a_file_at_pos (const char* file, char* buff, uint32_t si
 	// step1 : check co file hay ko
 	// neu co thi xoa file
 	// ghi vao file
-	fresult = f_open(&USERFile, file, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
+	fresult = f_open(&USERFile, file, FA_CREATE_ALWAYS);
 	if (fresult != FR_OK)
 	{
 		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);

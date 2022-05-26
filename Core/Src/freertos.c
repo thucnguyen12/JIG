@@ -1096,6 +1096,7 @@ void net_task(void *argument)
 
 	jig_value_t* rev_jig_value;
 	app_http_config_t http_cfg;
+	app_http_config_t http_cfg_file;
 	uint16_t len;
 	ETHERNET_STATE e_state = NOT_CONNECTED;
 	char file_name [64];
@@ -1137,16 +1138,19 @@ void net_task(void *argument)
 				if(!check_file (file_name))
 				{
 					len = fatfs_read_file (file_name, (uint8_t *)json_send_to_sever, 1024);
+					DEBUG_INFO ("READ %u byte \r\n", len);
 					if (len)
 					{
 						DEBUG_INFO ("json from file: %s\r\n", json_send_to_sever);
-						sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
+						sprintf(http_cfg_file.url, "%s", "dev-api.basato.vn");
 						http_cfg.port = 80;
-						sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
-						http_cfg.on_event_cb = (void*)0;
-						http_cfg.method = APP_HTTP_POST;
-						trans_content_to_body ((uint8_t *) json_send_to_sever, len);
-						app_http_start(&http_cfg,  (int)len);
+						sprintf(http_cfg_file.file, "%s", "/fact/api/firesafe/test-result");
+						http_cfg_file.on_event_cb = (void*)0;
+						http_cfg_file.method = APP_HTTP_POST;
+						http_cfg_file.transfile = TRANS_FILE;
+						trans_file_name_to_make_body (file_name);
+//						trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+						app_http_start(&http_cfg_file,  (int)len);
 						delete_a_file (file_name);
 						DEBUG_INFO ("SEND OFFLINE FILE\r\n");
 					}
@@ -1158,18 +1162,23 @@ void net_task(void *argument)
 				if(!check_file (file_name))
 				{
 					len = fatfs_read_file (file_name, (uint8_t *)json_send_to_sever, 1024);
+					DEBUG_INFO ("READ %u byte \r\n", len);
 					if (len)
 					{
 						DEBUG_INFO ("json from file: %s\r\n", json_send_to_sever);
-						sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
-						http_cfg.port = 80;
-						sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
-						http_cfg.on_event_cb = (void*)0;
-						http_cfg.method = APP_HTTP_POST;
-						trans_content_to_body ((uint8_t *) json_send_to_sever, len);
-						app_http_start(&http_cfg,  (int)len);
-						delete_a_file (file_name);
-						DEBUG_INFO ("SEND OFFLINE FILE\r\n");
+						sprintf(http_cfg_file.url, "%s", "dev-api.basato.vn");
+						http_cfg_file.port = 80;
+						sprintf(http_cfg_file.file, "%s", "/fact/api/firesafe/test-result");
+						http_cfg_file.on_event_cb = (void*)0;
+						http_cfg_file.method = APP_HTTP_POST;
+						http_cfg_file.transfile = TRANS_FILE;
+						trans_file_name_to_make_body (file_name);
+//						trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+						if(app_http_start(&http_cfg_file,  (int)len))
+						{
+							delete_a_file (file_name);
+							DEBUG_INFO ("SEND OFFLINE FILE\r\n");
+						}
 					}
 				}
 			}
@@ -1215,6 +1224,7 @@ void net_task(void *argument)
 				sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
 				http_cfg.on_event_cb = (void*)0;
 				http_cfg.method = APP_HTTP_POST;
+				http_cfg.transfile = TRANS_STRING;
 				trans_content_to_body ((uint8_t *) json_send_to_sever, len);
 				app_http_start(&http_cfg,  (int)len);
 			}
@@ -1226,7 +1236,7 @@ void net_task(void *argument)
 				}
 				{
 				DIR dir;
-				UINT i;
+//				UINT i;
 				fre = f_opendir(&dir, "offline_test");
 				if (fre == FR_OK)
 				{

@@ -10,6 +10,7 @@
 //#include "lwip/altcp_tls.h"
 #include "lwip/init.h"
 #include "string.h"
+#include "fatfs.h"
 
 #define HTTP_DOWNLOAD_BUFFER_SIZE 1024
 
@@ -24,7 +25,7 @@ static httpc_state_t *m_http_connection_state;
 
 static uint8_t post_body[1024];
 static uint16_t body_len;
-
+static char name[64];
 app_http_config_t *app_http_get_config(void)
 {
     return &m_http_cfg;
@@ -139,6 +140,33 @@ static err_t http_post_make_body(httpc_state_t *connection, void *arg, uint8_t *
     return ERR_OK;
 }
 
+void trans_file_name_to_make_body (const char * file_name)
+{
+	memcpy (name, file_name, 64);
+}
+
+static err_t http_post_make_body_from_file(httpc_state_t *connection, void *arg, uint8_t **buffer, uint16_t *len)
+{
+    DEBUG_INFO("HTTP post body\r\n");
+    	uint32_t byte_read;
+    	static uint32_t last_pos = 0;
+    	static uint8_t *data;
+    	static char file_name [64];
+    	memcpy (file_name, name, 64);
+    	byte_read = fatfs_read_file_at_pos (file_name, data, 512, last_pos);
+    	if (byte_read)
+        {
+    		*buffer = (uint8_t*)data;
+    		*len = body_len;
+    		last_pos += 512;
+        }
+    	else
+    	{
+    		*len = 0;
+    	}
+
+    return ERR_OK;
+}
 /**
  * @brief Header received done callback
  */
@@ -289,8 +317,15 @@ bool app_http_start(app_http_config_t *config, int pos_len)
     
     m_conn_settings_try.headers_done_fn = httpc_headers_done_callback;
     m_conn_settings_try.result_fn = httpc_result_callback;
-    m_conn_settings_try.on_post_body_cb = http_post_make_body;
-    
+    if ((config->transfile) == TRANS_STRING)
+    {
+    	m_conn_settings_try.on_post_body_cb = http_post_make_body;
+    }
+    else
+    {
+    	DEBUG_INFO ("SET NEW CALLBACK \r\n");
+    	m_conn_settings_try.on_post_body_cb = http_post_make_body_from_file;
+    }
     if (error != ERR_OK)
     {
         DEBUG_INFO("Cannot connect HTTP server, error %d\r\n", error);

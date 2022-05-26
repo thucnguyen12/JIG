@@ -7,6 +7,8 @@
 #define APP_HTTP_MAX_URL_SIZE 256
 #define APP_HTTP_GET 0
 #define APP_HTTP_POST 1
+#define TRANS_FILE 1
+#define TRANS_STRING 0
 
 typedef struct
 {
@@ -34,6 +36,7 @@ typedef struct
     char file[APP_HTTP_MAX_URL_SIZE];
     uint16_t port;
     uint8_t method;
+    uint8_t transfile;
 } app_http_config_t;
 
 
@@ -72,7 +75,7 @@ bool app_http_start(app_http_config_t * config, int pos_len);
  */
 bool app_http_is_idle(void);
 void trans_content_to_body (uint8_t * databuff, uint16_t len);
-
+void trans_file_name_to_make_body (const char * file_name);
 #endif /* APP_HTTP_H */
 
 
