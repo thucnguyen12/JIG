@@ -140,6 +140,7 @@ int32_t fatfs_get_file_size(const char *file)
     fresult = f_open(&USERFile, file, FA_READ);
     if (fresult != FR_OK)
     {
+    	if (fresult == 4) size = 0;
         DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
         goto end;
     }
@@ -159,28 +160,27 @@ end:
     return size;
 }
 
-uint32_t fatfs_write_to_a_file (const char* file, char* buff, uint32_t size)
+uint32_t fatfs_write_to_a_file_at_pos (const char* file, char* buff, uint32_t size, uint32_t pos)
 {
 	UINT byte_write = 0;
 	// step1 : check co file hay ko
 	// neu co thi xoa file
 	// ghi vao file
-	fresult = f_open(&USERFile, file, FA_CREATE_ALWAYS);
+	fresult = f_open(&USERFile, file, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
 	if (fresult != FR_OK)
 	{
 		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
 		goto end;
 	}
 	f_close(&USERFile);
-
-	fresult = f_open(&USERFile, file, FA_WRITE);
+	fresult = f_open(&USERFile, file, 	FA_OPEN_APPEND | FA_WRITE);
 	if (fresult != FR_OK)
 	{
 		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
 		goto end;
 	}
 
-	fresult = f_lseek(&USERFile, f_size(&USERFile));
+	fresult = f_lseek(&USERFile, (FSIZE_t)pos);
 	if (FR_OK != fresult)
 	{
 		DEBUG_ERROR(" Seek file %s at 0 failed\r\n", file);
@@ -272,6 +272,7 @@ FRESULT create_a_dir (const char * path)
 	{
 		DEBUG_ERROR ("ERROR IN CREAT DIR\r\n");
 	}
+	return fresult;
 }
 
 /* USER CODE END Application */

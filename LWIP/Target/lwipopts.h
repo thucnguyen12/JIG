@@ -120,9 +120,9 @@
 /*-----------------------------------------------------------------------------*/
 /* USER CODE BEGIN 1 */
 #define LWIP_PLATFORM_DIAG(x) do {DEBUG_RAW x;} while(0)
-#define LWIP_DEBUG LWIP_DBG_ON
+#define LWIP_DEBUG LWIP_DBG_OFF
 #define SNTP_STARTUP_DELAY 0
-#define SNTP_DEBUG LWIP_DBG_ON
+#define SNTP_DEBUG LWIP_DBG_OFF
 extern void lwip_sntp_recv_cb (uint32_t time);
 #define SNTP_SET_SYSTEM_TIME lwip_sntp_recv_cb
 /* USER CODE END 1 */

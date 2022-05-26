@@ -62,6 +62,7 @@
 #include "time.h"
 #include "app_cli.h"
 #include "iwdg.h"
+#include "ff.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -431,9 +432,12 @@ static uint32_t convert_date_time_to_second(date_time_t *t);
 //*************************************************//
 
 //*******************fatfs var********************//
-FILINFO fno;
+//FILINFO fno;
 FRESULT fre;  // result
-
+DIR dir;
+//UINT i;
+static char * buffer[15] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+FRESULT scan_files (char* pat);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -712,7 +716,7 @@ void cdc_task(void* params)
 			if (m_cdc_debug_register == false)
 			{
 				m_cdc_debug_register = true;
-//				app_debug_register_callback_print(cdc_tx);
+				app_debug_register_callback_print(cdc_tx);
 			}
 			if (tud_cdc_available())
 			{
@@ -772,10 +776,10 @@ void flash_task(void *argument)
 	 {
 		 vTaskDelay(100);
 	 }
-	 while (!m_ip_assigned)
-	 {
-		 vTaskDelay(100);
-	 }
+//	 while (!m_ip_assigned)
+//	 {
+//		 vTaskDelay(100);
+//	 }
 	 DEBUG_INFO ("SEM TOOK \r\n");
 	if (m_disk_is_mounted)
 	{
@@ -874,7 +878,7 @@ void flash_task(void *argument)
 								pdTRUE,
 								pdFALSE,
 								portMAX_DELAY);
-		//   THRERE NO KEY NOW
+		//   THRERE one KEY NOW
 		DEBUG_INFO("KEY IS PRESSED\r\n");
 		USART2->CR1 |= (uint32_t)(1<<2);
 		DEBUG_INFO ("RECIEVE ENABLE \r\n");
@@ -1101,7 +1105,6 @@ void net_task(void *argument)
 		{
 		case NOT_CONNECTED:
 			if (m_ip_assigned) e_state = CONNECT;
-			xEventGroupSetBits(m_wdg_event_group, netTaskB);
 			break;
 		case CONNECT:
 			initialize_stnp();
@@ -1109,52 +1112,65 @@ void net_task(void *argument)
 			{
 				fre = create_a_dir ("offline_test");
 			}
-			//scan file sequence
+
+			RTC_DateTypeDef sDateReadFile = {0};
+			HAL_RTC_GetDate (&hrtc, &sDateReadFile, RTC_FORMAT_BIN);
+			uint8_t this_month = sDateReadFile.Month;
+			uint8_t last_month;
+			uint8_t year = sDateReadFile.Year;
+			if (this_month == 1)
 			{
-				DIR dir;
-				UINT i;
-				char path[20];
-				sprintf (path, "%s","offline_test");
-				fre = f_opendir(&dir, path);
-				if (fre == FR_OK)
+				last_month = 12;
+				year = year - 1;
+			}
+			else
+			{
+				last_month = this_month - 1;
+			}
+			uint8_t month_read = day_in_month[this_month];
+			uint8_t last_month_read = day_in_month[last_month];
+//			sprintf (file_name, "offline_test/test%d-%d-%d", sDateWriteFile.Date, sDateWriteFile.Month, sDateWriteFile.Year);
+			//scan file sequence
+			for (uint8_t i = 1; i < last_month_read; i++)
+			{
+				sprintf (file_name, "0:/offline_test/test%d-%d-%d", i, last_month, year);
+				if(!check_file (file_name))
 				{
-					DEBUG_INFO ("OPEN DIR OK\r\n");
-//					for (;;)
-//					{
-//						fre = f_readdir(&dir, &fno);                   /* Read a directory item */
-//						if (fre != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
-//						if (fno.fattrib & AM_DIR)     /* It is a directory */
-//						{
-//							if (!(strcmp ("SYSTEM~1", fno.fname))) continue;
-////							i = strlen(path);
-////							sprintf(&path[i], "/%s", fno.fname);
-//////							fre = scan_files(path);                     /* Enter the directory */
-//////							if (fre != FR_OK) break;
-////							path[i] = 0;
-//						}
-//						else
-//						{                                       /* It is a file. */
-//						   if (!check_file (fno.fname))
-//						   {
-//							   len = fatfs_read_file (fno.fname, (uint8_t *)json_send_to_sever, 1024);
-//								if (len)
-//								{
-//									DEBUG_INFO ("json from file: %s\r\n", json_send_to_sever);
-//									sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
-//									http_cfg.port = 80;
-//									sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
-//									http_cfg.on_event_cb = (void*)0;
-//									http_cfg.method = APP_HTTP_POST;
-//									trans_content_to_body ((uint8_t *) json_send_to_sever, len);
-//									DEBUG_INFO ("SEND");
-//									app_http_start(&http_cfg,  (int)len);
-//									delete_a_file (fno.fname);
-//									DEBUG_INFO ("SEND OFFLINE FILE\r\n");
-//								}
-//						   }
-//						}
-//					}
-					f_closedir(&dir);
+					len = fatfs_read_file (file_name, (uint8_t *)json_send_to_sever, 1024);
+					if (len)
+					{
+						DEBUG_INFO ("json from file: %s\r\n", json_send_to_sever);
+						sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
+						http_cfg.port = 80;
+						sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
+						http_cfg.on_event_cb = (void*)0;
+						http_cfg.method = APP_HTTP_POST;
+						trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+						app_http_start(&http_cfg,  (int)len);
+						delete_a_file (file_name);
+						DEBUG_INFO ("SEND OFFLINE FILE\r\n");
+					}
+				}
+			}
+			for (uint8_t i = 1; i < month_read; i++)
+			{
+				sprintf (file_name, "0:/offline_test/test%d-%d-%d", i, sDateReadFile.Month, sDateReadFile.Year);
+				if(!check_file (file_name))
+				{
+					len = fatfs_read_file (file_name, (uint8_t *)json_send_to_sever, 1024);
+					if (len)
+					{
+						DEBUG_INFO ("json from file: %s\r\n", json_send_to_sever);
+						sprintf(http_cfg.url, "%s", "dev-api.basato.vn");
+						http_cfg.port = 80;
+						sprintf(http_cfg.file, "%s", "/fact/api/firesafe/test-result");
+						http_cfg.on_event_cb = (void*)0;
+						http_cfg.method = APP_HTTP_POST;
+						trans_content_to_body ((uint8_t *) json_send_to_sever, len);
+						app_http_start(&http_cfg,  (int)len);
+						delete_a_file (file_name);
+						DEBUG_INFO ("SEND OFFLINE FILE\r\n");
+					}
 				}
 			}
 
@@ -1217,7 +1233,10 @@ void net_task(void *argument)
 					RTC_DateTypeDef sDateWriteFile = {0};
 					HAL_RTC_GetDate (&hrtc, &sDateWriteFile, RTC_FORMAT_BIN);
 					sprintf (file_name, "offline_test/test%d-%d-%d", sDateWriteFile.Date, sDateWriteFile.Month, sDateWriteFile.Year);
-					uint32_t byte_write = fatfs_write_to_a_file (file_name, json_send_to_sever, (uint32_t)len);
+					uint32_t byte = fatfs_get_file_size (file_name);
+					DEBUG_INFO ("NOW HAVE %u BYTE\r\n", byte);
+					uint32_t byte_write = fatfs_write_to_a_file_at_pos (file_name, json_send_to_sever, (uint32_t)len, byte);
+
 					if (byte_write == len)
 					{
 						DEBUG_INFO ("WRITE FILE OK \r\n");
@@ -1316,12 +1335,6 @@ void net_task(void *argument)
 
 	}
 #endif
-//	for(;;)
-//	{
-//
-//		osDelay(1000);
-//
-//	}
 }
 
 
@@ -2259,43 +2272,52 @@ int32_t USB_puts(char *msg)
     return len;
 }
 
-//FRESULT scan_files (char* pat)
-//{
-//    DIR dir;
-//    UINT i;
-//
-//    char path[20];
-//    sprintf (path, "%s",pat);
-//
-//    fresult = f_opendir(&dir, path);                       /* Open the directory */
-//    if (fresult == FR_OK)
-//    {
-//        for (;;)
-//        {
-//            fresult = f_readdir(&dir, &fno);                   /* Read a directory item */
-//            if (fresult != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
-//            if (fno.fattrib & AM_DIR)     /* It is a directory */
-//            {
-//            	if (!(strcmp ("SYSTEM~1", fno.fname))) continue;
-////            	sprintf (buffer, "Dir: %s\r\n", fno.fname);
-////            	send_uart(buffer);
-//                i = strlen(path);
-//                sprintf(&path[i], "/%s", fno.fname);
-//                fresult = scan_files(path);                     /* Enter the directory */
-//                if (fresult != FR_OK) break;
-//                path[i] = 0;
-//            }
-//            else
-//            {                                       /* It is a file. */
-//               sprintf(buffer,"File: %s/%s\n", path, fno.fname);
-//
-////               send_uart(buffer);
-//            }
-//        }
-//        f_closedir(&dir);
-//    }
-//    return fresult;
-//}
+//static char * buffer[15];
+FRESULT scan_files (char* pat)
+{
+	FRESULT res;
+	DIR dir;
+	UINT i;
+	static FILINFO fno;
+	static uint8_t count;
+
+    char path[20];
+    sprintf (path, "%s",pat);
+
+    res = f_opendir(&dir, path);                       /* Open the directory */
+    if (res == FR_OK)
+    {
+        for (uint8_t j = 0;;j++)
+        {
+        	count = j;
+        	res = f_readdir(&dir, &fno);                   /* Read a directory item */
+            if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+            if (fno.fattrib & AM_DIR)     /* It is a directory */
+            {
+            	if (!(strcmp ("SYSTEM~1", fno.fname))) continue;
+//            	sprintf (buffer, "Dir: %s\r\n", fno.fname);
+//            	send_uart(buffer);
+                i = strlen(path);
+                sprintf(&path[i], "/%s", fno.fname);
+                res = scan_files(path);                     /* Enter the directory */
+                if (res != FR_OK) break;
+                path[i] = 0;
+            }
+            else
+            {                                       /* It is a file. */
+               sprintf(buffer[j],"%s/%s\n", path, fno.fname);
+
+//               send_uart(buffer);
+            }
+        }
+        f_closedir(&dir);
+        if (count == 0)
+        {
+        	DEBUG_INFO ("NO FILE IN HERE \r\n");
+        }
+    }
+    return res;
+}
 
 /* USER CODE END Application */
 
