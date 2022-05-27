@@ -103,7 +103,7 @@ int32_t fatfs_read_file_at_pos(const char *file, uint8_t *data, uint32_t size, u
         f_close(&USERFile);
         goto end;
     }
-
+    DEBUG_VERBOSE("File %s seek set\r\n", file);
     fresult = f_lseek(&USERFile, pos);
     if (FR_OK != fresult)
     {
@@ -113,7 +113,7 @@ int32_t fatfs_read_file_at_pos(const char *file, uint8_t *data, uint32_t size, u
         f_close(&USERFile);
         goto end;
     }
-
+    DEBUG_VERBOSE("File %s seek pos\r\n", file);
     fresult = f_read(&USERFile, data, size, &byte_read);
     if (FR_OK != fresult)
     {
@@ -123,8 +123,13 @@ int32_t fatfs_read_file_at_pos(const char *file, uint8_t *data, uint32_t size, u
         f_close(&USERFile);
         goto end;
     }
+    DEBUG_VERBOSE("File %s read\r\n", file);
+    fresult = f_close(&USERFile);
+    if (FR_OK != fresult)
+       {
+     	 DEBUG_INFO ("CLOSE FILE ERROR: %u", fresult);
+       }
 
-    f_close(&USERFile);
     DEBUG_VERBOSE("File %s closed\r\n", file);
 end:
     return byte_read;
@@ -196,6 +201,85 @@ uint32_t fatfs_write_to_a_file_at_pos (const char* file, char* buff, uint32_t si
 		f_close(&USERFile);
 		goto end;
 
+	}
+	f_close(&USERFile);
+	end:
+	    return byte_write;
+}
+
+uint32_t fatfs_write_json_to_a_file_at_pos (const char* file, char* buff, uint32_t size, uint32_t pos)
+{
+	UINT byte_write = 0;
+	const char * next_symbol = ",";
+	const char * end_symbol = "]";
+	// step1 : check co file hay ko
+	// neu co thi xoa file
+	// ghi vao file
+	fresult = f_open(&USERFile, file, FA_CREATE_ALWAYS);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
+		goto end;
+	}
+	f_close(&USERFile);
+	fresult = f_open(&USERFile, file, 	FA_OPEN_APPEND | FA_WRITE);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
+		goto end;
+	}
+	if (pos == 0)
+	{
+		fresult = f_lseek(&USERFile, (FSIZE_t)pos);
+		if (FR_OK != fresult)
+		{
+			DEBUG_ERROR(" Seek file %s at 0 failed\r\n", file);
+			f_close(&USERFile);
+			goto end;
+		}
+	}
+	else
+	{
+		fresult = f_lseek(&USERFile, (FSIZE_t) pos - 1);
+		if (FR_OK != fresult)
+		{
+			DEBUG_ERROR(" Seek file %s at 0 failed\r\n", file);
+			f_close(&USERFile);
+			goto end;
+		}
+	}
+	if (pos != 0)
+	{
+		fresult = f_write (&USERFile, next_symbol, 1, &byte_write);
+			if (fresult != FR_OK)
+			{
+				DEBUG_INFO ("ERROR %d", fresult);
+				DEBUG_ERROR ("WRITE FILE %s FAIL", file);
+				f_close(&USERFile);
+				goto end;
+
+			}
+	}
+	fresult = f_write (&USERFile, buff, size, &byte_write);
+	if (fresult != FR_OK)
+	{
+		DEBUG_INFO ("ERROR %d", fresult);
+		DEBUG_ERROR ("WRITE FILE %s FAIL", file);
+		f_close(&USERFile);
+		goto end;
+
+	}
+	if (pos)
+	{
+		fresult = f_write (&USERFile, end_symbol, 1, &byte_write);
+		if (fresult != FR_OK)
+		{
+			DEBUG_INFO ("ERROR %d", fresult);
+			DEBUG_ERROR ("WRITE FILE %s FAIL", file);
+			f_close(&USERFile);
+			goto end;
+
+		}
 	}
 	f_close(&USERFile);
 	end:
