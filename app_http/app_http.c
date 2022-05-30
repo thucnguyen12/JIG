@@ -11,6 +11,7 @@
 #include "lwip/init.h"
 #include "string.h"
 #include "fatfs.h"
+#include "semphr.h"
 
 #define HTTP_DOWNLOAD_BUFFER_SIZE 1024
 
@@ -31,7 +32,8 @@ app_http_config_t *app_http_get_config(void)
 {
     return &m_http_cfg;
 }
-extern bool send_offline_file;
+//extern bool send_offline_file;
+extern SemaphoreHandle_t sent_an_offline_file;
 void app_http_cleanup(void)
 {
     m_total_bytes_recv = 0;
@@ -40,7 +42,7 @@ void app_http_cleanup(void)
     memset(&m_http_cfg, 0, sizeof(m_http_cfg));
 }
 
-uint32_t m_begin = 0;
+static uint32_t m_begin = 0;
 bool m_http_free = true;
 bool app_http_is_idle(void)
 {
@@ -59,12 +61,14 @@ static void httpc_result_callback(void *arg, httpc_result_t httpc_result, u32_t 
 //    audio_queue.size = 0;
 //    sys_send_audio_queue(audio_queue, 2000);
     vPortFree (data_carry);
-    switch (err)
+    switch (httpc_result)
     {
         case HTTPC_RESULT_OK: /** File successfully received */
         {
             DEBUG_INFO("HTTPC_RESULT_OK, speed %uKB/s\r\n", rx_content_len/(sys_get_ms()-m_begin));
-            send_offline_file = true;
+            xSemaphoreGive (sent_an_offline_file);
+//            send_offline_file = true;
+
 //            bool status = false;
 
 //            if (m_content_length && (m_content_length == m_total_bytes_recv))
@@ -152,17 +156,22 @@ void trans_file_name_to_make_body (const char * file)
 static err_t http_post_make_body_from_file(httpc_state_t *connection, void *arg, uint8_t **buffer, uint16_t *len)
 {
 		DEBUG_INFO("HTTP post body\r\n");
-    	static uint16_t block = 0;
+    	static uint32_t block = 0;
     	static uint32_t last_pos = 0;
     	uint32_t byte_read;
     	static char file_name [64];
     	memcpy (file_name, name, 64);
     	uint32_t size_of_file = fatfs_get_file_size (file_name);
-    	uint8_t *data = (uint8_t *)data_carry;
+//    	uint8_t *data = (uint8_t *)data_carry;
 //    	static bool started = false;
 //    	const char * start = "[";
 //    	const char * end = "]";
-
+//    	if (last_pos == size_of_file)
+//    	{
+//    		*len = 0;
+//    		last_pos = 0;
+//    		goto end;
+//    	}
     	if(size_of_file)
     	{
 
@@ -180,16 +189,16 @@ static err_t http_post_make_body_from_file(httpc_state_t *connection, void *arg,
 //				*len = 1;
 //				goto end;
 //			}
-    		memset (data, '\0', 512);
-			byte_read = fatfs_read_file_at_pos (file_name, data, (uint32_t)512, last_pos);
+    		memset (data_carry, '\0', 512);
+			byte_read = fatfs_read_file_at_pos (file_name, data_carry, (uint32_t)512, last_pos);
 //			DEBUG_INFO ("DATA READ: %s \r\n", data);
 			if (byte_read)
 			{
 
 
-				memcpy(data_carry, data, byte_read);
+//				memcpy(data_carry, data, byte_read);
 				DEBUG_INFO ("DATA CARRY NOW: %s\r\n", data_carry);
-				data += byte_read;
+//				data_carry += byte_read;
 				if (block*512 < size_of_file)
 				{
 					block ++;
@@ -199,9 +208,16 @@ static err_t http_post_make_body_from_file(httpc_state_t *connection, void *arg,
 				{
 					*len = size_of_file - (512 * block) + 2;
 					block = 0;
+					DEBUG_INFO("All data was send to server\r\n");
 				}
 				*buffer = (uint8_t *)data_carry;
 				last_pos += byte_read;
+			}
+			else
+			{
+				*len = 0;
+				last_pos = 0;
+				block = 0;
 			}
 			DEBUG_INFO ("LAST POS NOW IS %u\r\n",last_pos);
     	}
@@ -347,7 +363,7 @@ bool app_http_start(app_http_config_t *config, int pos_len)
     else        // post
     {
         m_conn_settings_try.method = HTTP_METHOD_POST;
-        DEBUG_INFO ("POST LEN TRAN IS :%d",pos_len);
+        DEBUG_INFO ("POST LEN TRAN IS :%d\r\n",pos_len);
         error = httpc_post_file_dns((const char*)m_http_cfg.url, 
                                         m_http_cfg.port, 
                                         m_http_cfg.file, 

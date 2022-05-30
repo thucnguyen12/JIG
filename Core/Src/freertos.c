@@ -282,6 +282,7 @@ static EventBits_t uxBits;
 	SemaphoreHandle_t hHttpStart;
 	xQueueHandle httpQueue;
 	bool send_offline_file = false;
+	SemaphoreHandle_t sent_an_offline_file;
 /*****************************************************************/
 
 //************************** MD5 CRC CONFIG VAR ************************//
@@ -1101,6 +1102,7 @@ void net_task(void *argument)
 	uint32_t len;
 	ETHERNET_STATE e_state = NOT_CONNECTED;
 	char file_name [64];
+	sent_an_offline_file = xSemaphoreCreateBinary ();
 	for (;;)
 	{
 		switch (e_state)
@@ -1129,8 +1131,8 @@ void net_task(void *argument)
 			{
 				last_month = this_month - 1;
 			}
-			uint8_t month_read = day_in_month[this_month];
-			uint8_t last_month_read = day_in_month[last_month];
+			uint8_t month_read = day_in_month[this_month + 1];
+			uint8_t last_month_read = day_in_month[last_month + 1];
 //			sprintf (file_name, "offline_test/test%d-%d-%d", sDateWriteFile.Date, sDateWriteFile.Month, sDateWriteFile.Year);
 			//scan file sequence
 			for (uint8_t i = 1; i < last_month_read; i++)
@@ -1157,19 +1159,19 @@ void net_task(void *argument)
 					}
 				}
 			}
-			for (uint8_t i = 1; i < month_read; i++)
+			for (uint8_t i = 1; i <= month_read; i++)
 			{
 				sprintf (file_name, "0:/offline_test/test%d-%d-%d", i, sDateReadFile.Month, sDateReadFile.Year);
 				if(!check_file (file_name))
 				{
-					len = fatfs_read_file (file_name, (uint8_t *)json_send_to_sever, 1024);
-					DEBUG_INFO ("READ %u byte \r\n", len);
+//					len = fatfs_read_file (file_name, (uint8_t *)json_send_to_sever, 1024);
+//					DEBUG_INFO ("READ %u byte \r\n", len);
 					len = fatfs_get_file_size (file_name);
 					DEBUG_INFO ("FILE SIZE : %d \r\n", len);
 					if (len)
 					{
-						DEBUG_INFO ("json from file: %s\r\n", json_send_to_sever);
-						sprintf(http_cfg_file.url, "%s", "192.168.1.2");
+//						DEBUG_INFO ("json from file: %s\r\n", json_send_to_sever);
+						sprintf(http_cfg_file.url, "%s", "192.168.1.28");
 						http_cfg_file.port = 80;
 						sprintf(http_cfg_file.file, "%s", "/test.txt");
 						http_cfg_file.on_event_cb = (void*)0;
@@ -1179,10 +1181,20 @@ void net_task(void *argument)
 //						trans_content_to_body ((uint8_t *) json_send_to_sever, len);
 						app_http_start(&http_cfg_file,  (int)len);
 //						send_offline_file = true;
-//
-
+					}
+					if (xSemaphoreTake (sent_an_offline_file, 15000) == pdTRUE)
+					{
+						DEBUG_INFO("Delete file %s\r\n", file_name);
+						delete_a_file (file_name);
+	//					DEBUG_INFO ("DELETE THE FILE \r\n");
+//						if (i = month_read)
+//						{
+//							send_offline_file = true;
+//						}
 					}
 				}
+
+
 //				delete_a_file (file_name);
 			}
 
@@ -1212,18 +1224,18 @@ void net_task(void *argument)
 				e_state = NOT_CONNECTED;
 				m_ip_assigned = false;
 			}
-			if (send_offline_file)
-			{
-				for (uint8_t i = 1; i < month_read; i++)
-				{
-					sprintf (file_name, "0:/offline_test/test%d-%d-%d", i, sDateReadFile.Month, sDateReadFile.Year);
-					if(!check_file (file_name))
-					{
-						delete_a_file (file_name);
-						send_offline_file = false;
-					}
-				}
-			}
+//			if (send_offline_file)
+//			{
+//				for (uint8_t i = 1; i < month_read; i++)
+//				{
+//					sprintf (file_name, "0:/offline_test/test%d-%d-%d", i, sDateReadFile.Month, sDateReadFile.Year);
+//					if(!check_file (file_name))
+//					{
+//						delete_a_file (file_name);
+//					}
+//				}
+//				send_offline_file = false;
+//			}
 			break;
 		default:
 			break;
@@ -1236,7 +1248,7 @@ void net_task(void *argument)
 			DEBUG_INFO ("%s\r\n",json_send_to_sever);
 			if (eth_is_cable_connected (&g_netif) )
 			{
-				sprintf(http_cfg.url, "%s", "192.168.1.2");
+				sprintf(http_cfg.url, "%s", "192.168.1.28");
 				http_cfg.port = 80;
 				sprintf(http_cfg.file, "%s", "/test.txt");
 				http_cfg.on_event_cb = (void*)0;
