@@ -1,7 +1,7 @@
  #include "app_spi_flash.h"
 #include "app_debug.h"
 #include <string.h>
-
+#include "FreeRTOS.h"
 typedef union
 {
     struct
@@ -373,21 +373,23 @@ void app_spi_flash_direct_write_bytes(app_flash_drv_t *flash_drv, uint32_t addr,
     uint32_t i = 0;
     uint32_t old_addr = addr;
     bool found_error = false;
+    uint8_t* rb = (uint8_t*) pvPortMalloc (sizeof (uint8_t));
     for (i = 0; i < length; i++) // Debug only
     {
-        uint8_t rb;
-        app_spi_flash_read_bytes(flash_drv, old_addr + i, (uint8_t *)&rb, 1);
-        if (memcmp(&rb, buffer + i, 1))
+
+        app_spi_flash_read_bytes(flash_drv, old_addr + i, rb, 1);
+        if (memcmp(rb, buffer + i, 1))
         {
             found_error = true;
-            DEBUG_ERROR("Flash write error at addr 0x%08X, readback 0x%02X, expect 0x%02X\r\n", old_addr + i, rb, *(buffer + i));
+            DEBUG_ERROR("Flash write error at addr 0x%08X, readback 0x%02X, expect 0x%02X\r\n", old_addr + i, *rb, *(buffer + i));
             break;
         }
         else
         {
-            DEBUG_VERBOSE("Flash write success at addr 0x%08X, readback 0x%02X, expect 0x%02X\r\n", old_addr + i, rb, *(buffer + i));
+            DEBUG_VERBOSE("Flash write success at addr 0x%08X, readback 0x%02X, expect 0x%02X\r\n", old_addr + i, *rb, *(buffer + i));
         }
     }
+    vPortFree (rb);
     if (found_error == false)
     {
         DEBUG_VERBOSE("Page write success\r\n");
@@ -504,7 +506,6 @@ void app_spi_flash_read_bytes(app_flash_drv_t *flash_drv, uint32_t addr, uint8_t
         {
             /* Send 3 bytes address */
             cmd_buffer[index++] = (addr >> 16) & 0xFF;
-            ;
             cmd_buffer[index++] = (addr >> 8) & 0xFF;
             cmd_buffer[index++] = addr & 0xFF;
         }

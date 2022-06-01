@@ -53,7 +53,7 @@ SemaphoreHandle_t DiskMutex;
 /* Disk status */
 static volatile DSTATUS Stat = STA_NOINIT;
 
-static app_flash_drv_t m_spi_flash;
+app_flash_drv_t m_spi_flash;
 static void spi_flash_delay(void *arg, uint32_t ms);
 //static QueueHandle_t m_cmd_queue;
 

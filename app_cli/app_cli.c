@@ -36,6 +36,9 @@
 #include "app_shell.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "app_spi_flash.h"
+#include "app_drv_spi.h"
+#include "utilities.h"
 //#include "esp_log.h"
 //#include "esp_system.h"
 //#include "app_flash.h"
@@ -47,7 +50,9 @@
 //#include "app_audio.h"
 #include "main.h"
 #include "app_debug.h"
+#include "diskio.h"
 //static const char *TAG = "cli";
+extern app_flash_drv_t m_spi_flash;
 extern void fakeMac (char *MACstring);
 extern void getTimeNow (void);
 static app_cli_cb_t *m_cb;
@@ -93,11 +98,13 @@ static app_cli_cb_t *m_cb;
 static int32_t fakeMAC (p_shell_context_t context, int32_t argc, char **argv);
 static int32_t resetChip (p_shell_context_t context, int32_t argc, char **argv);
 static int32_t getTime (p_shell_context_t context, int32_t argc, char **argv);
+static int32_t readPage (p_shell_context_t context, int32_t argc, char **argv);
 static const shell_command_context_t cli_command_table[] =
 {
 		 {"fakeMAC", "\tfakeMAC: create a fake MAC add to test\r\n", fakeMAC, 1},
 		 {"resetChip", "\tresetChip: Call reset function \r\n", resetChip, 0},
-		 {"getTime", "\tgetTime: get time now \r\n", resetChip, 0}
+		 {"getTime", "\tgetTime: get time now \r\n", resetChip, 0},
+		 {"readPage", "\treadPage x: read page number x in flash", readPage, 1}
 };
 static shell_context_struct m_user_context;
 static app_cli_cb_t *m_cb;
@@ -147,6 +154,19 @@ static int32_t resetChip (p_shell_context_t context, int32_t argc, char **argv)
 static int32_t getTime (p_shell_context_t context, int32_t argc, char **argv)
 {
 	void getTimeNow (void);
+}
+static int32_t readPage (p_shell_context_t context, int32_t argc, char **argv)
+{
+	uint8_t* data_read = (uint8_t *)pvPortMalloc(256* sizeof (uint8_t));
+	if (argv[1])
+	{
+		uint16_t pageRead = utilities_get_number_from_string (0, argv[1]);
+		DEBUG_INFO ("page read:%d\r\n", pageRead);
+		app_spi_flash_read_bytes (&m_spi_flash, (pageRead * 256), data_read, 256);
+		DEBUG_INFO ("data: %s\r\n", data_read);
+	}
+	vPortFree (data_read);
+	return 0;
 }
 /* Reset System */
 //static int32_t cli_get_memory(p_shell_context_t context, int32_t argc, char **argv)

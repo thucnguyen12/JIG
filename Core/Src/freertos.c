@@ -601,7 +601,7 @@ void StartDefaultTask(void const * argument)
 	 httpQueue = xQueueCreate (1, sizeof(uint32_t));
   if (m_USB_handle == NULL)
 	{
-	  xTaskCreate(usb_task, "usb_task", 1024, NULL, 4, &m_USB_handle);// pio =1
+	  xTaskCreate(usb_task, "usb_task", 512, NULL, 4, &m_USB_handle);// pio =1
 	}
 
   if (m_task_handle_protocol == NULL)
@@ -617,7 +617,7 @@ void StartDefaultTask(void const * argument)
 
 //	  /* Start DHCPClient */
 
-	  osThreadDef(DHCP, DHCP_Thread, 2, 0, configMINIMAL_STACK_SIZE * 2);
+	  osThreadDef(DHCP, DHCP_Thread, 2, 0, configMINIMAL_STACK_SIZE);
 	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
 #endif
 
@@ -1152,10 +1152,14 @@ void net_task(void *argument)
 						http_cfg_file.method = APP_HTTP_POST;
 						http_cfg_file.transfile = TRANS_FILE;
 						trans_file_name_to_make_body (file_name);
-//						trans_content_to_body ((uint8_t *) json_send_to_sever, len);
 						app_http_start(&http_cfg_file,  (int)len);
+//						delete_a_file (file_name);
+//						DEBUG_INFO ("SEND OFFLINE FILE\r\n");
+					}
+					if (xSemaphoreTake (sent_an_offline_file, 15000) == pdTRUE)
+					{
+						DEBUG_INFO("Delete file %s\r\n", file_name);
 						delete_a_file (file_name);
-						DEBUG_INFO ("SEND OFFLINE FILE\r\n");
 					}
 				}
 			}
@@ -1178,7 +1182,6 @@ void net_task(void *argument)
 						http_cfg_file.method = APP_HTTP_POST;
 						http_cfg_file.transfile = TRANS_FILE;
 						trans_file_name_to_make_body (file_name);
-//						trans_content_to_body ((uint8_t *) json_send_to_sever, len);
 						app_http_start(&http_cfg_file,  (int)len);
 //						send_offline_file = true;
 					}
@@ -1186,16 +1189,9 @@ void net_task(void *argument)
 					{
 						DEBUG_INFO("Delete file %s\r\n", file_name);
 						delete_a_file (file_name);
-	//					DEBUG_INFO ("DELETE THE FILE \r\n");
-//						if (i = month_read)
-//						{
-//							send_offline_file = true;
 //						}
 					}
 				}
-
-
-//				delete_a_file (file_name);
 			}
 
 //			if(!check_file ("offline_file"))
@@ -1879,7 +1875,8 @@ void testing_task (void *arg)
 										pdTRUE,
 										10);
 
-		 if ((uxBits & (defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB)) == (defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB))
+		 if ((uxBits & (defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB))
+			 == (defaultTaskB | cdcTaskB | usbTaskB | flashTaskB | netTaskB))
 		 {
 			 HAL_IWDG_Refresh(&hiwdg);
 		 }
