@@ -1,7 +1,7 @@
- #include "app_spi_flash.h"
+#include "app_spi_flash.h"
 #include "app_debug.h"
 #include <string.h>
-#include "FreeRTOS.h"
+
 typedef union
 {
     struct
@@ -13,6 +13,7 @@ typedef union
 } __attribute__((packed)) app_spi_flash_device_id_t;
 
 #define VERIFY_FLASH 1
+#define VERIFY_FLASH_AFTER_WRITE	1
 #define DEBUG_FLASH 0
 #define FLASH_INIT_MAX_RETRIES 3
 
@@ -61,8 +62,8 @@ typedef union
 #define SPI_FLASH_SHUTDOWN_ENABLE 0
 #define HAL_SPI_Initialize() while (0)
 
-#define SECTOR_ERASE_TIME_MS 400
-#define FLASH_WRITE_TIMEOUT_MS 2000
+#define SECTOR_ERASE_TIME_MS 100
+#define FLASH_WRITE_TIMEOUT_MS 5
 #define FLASH_ERASE_TIMEOUT_MS 60000
 
 static bool flash_get_device_id(app_flash_drv_t *flash_drv);
@@ -290,14 +291,14 @@ static void wait_write_in_process(app_flash_drv_t *flash_drv, uint32_t timeout_m
     // uint8_t cmd;
 
     /* Read status register */
-    flash_drv->callback.spi_cs(flash_drv->spi, 0);
-    uint8_t tmp[2] = {RDSR_CMD, SPI_DUMMY};
-
+    uint8_t tmp[3] = {RDSR_CMD, SPI_DUMMY, SPI_DUMMY};
     while (1)
     {
-        flash_drv->callback.spi_tx_rx(flash_drv->spi, tmp, status, 2);
+        flash_drv->callback.spi_cs(flash_drv->spi, 0);
+        flash_drv->callback.spi_tx_rx(flash_drv->spi, tmp, status, 3);
+        flash_drv->callback.spi_cs(flash_drv->spi, 1);
 
-        if ((status[0] & 1) == 0)
+        if ((status[1] & 1) == 0)
             break;
         if (timeout_ms)
         {
@@ -314,7 +315,6 @@ static void wait_write_in_process(app_flash_drv_t *flash_drv, uint32_t timeout_m
     {
         DEBUG_ERROR("[%s-%d] error\r\n", __FUNCTION__, __LINE__);
     }
-    flash_drv->callback.spi_cs(flash_drv->spi, 1);
 }
 
 void app_spi_flash_direct_write_bytes(app_flash_drv_t *flash_drv, uint32_t addr, uint8_t *buffer, uint16_t length)
@@ -323,10 +323,11 @@ void app_spi_flash_direct_write_bytes(app_flash_drv_t *flash_drv, uint32_t addr,
     {
         return;
     }
-    DEBUG_VERBOSE("Flash write page addr 0x%08X, size %u\r\n", addr, length);
+    DEBUG_INFO("Flash write page addr 0x%08X, size %u\r\n", addr, length);
 
 
     flash_write_control(flash_drv, 1);
+
     flash_drv->callback.spi_cs(flash_drv->spi, 0);
 
     uint8_t tmp[32];
@@ -369,27 +370,25 @@ void app_spi_flash_direct_write_bytes(app_flash_drv_t *flash_drv, uint32_t addr,
 
     wait_write_in_process(flash_drv, FLASH_WRITE_TIMEOUT_MS);
 
-#if VERIFY_FLASH
+#if VERIFY_FLASH_AFTER_WRITE
     uint32_t i = 0;
     uint32_t old_addr = addr;
     bool found_error = false;
-    uint8_t* rb = (uint8_t*) pvPortMalloc (sizeof (uint8_t));
-    for (i = 0; i < length; i++) // Debug only
+    for (i = 0; i < length; i+= 4) // Debug only
     {
-
-        app_spi_flash_read_bytes(flash_drv, old_addr + i, rb, 1);
-        if (memcmp(rb, buffer + i, 1))
+        uint32_t rb;
+        app_spi_flash_read_bytes(flash_drv, old_addr + i, (uint8_t*)&rb, 4);
+        if (memcmp(&rb, buffer + i, 4))
         {
             found_error = true;
-            DEBUG_ERROR("Flash write error at addr 0x%08X, readback 0x%02X, expect 0x%02X\r\n", old_addr + i, *rb, *(buffer + i));
+            DEBUG_ERROR("Flash write error at addr 0x%08X, readback 0x%08X, expect 0x%08X\r\n", old_addr + i, rb, *((uint32_t*)(buffer + i)));
             break;
         }
         else
         {
-            DEBUG_VERBOSE("Flash write success at addr 0x%08X, readback 0x%02X, expect 0x%02X\r\n", old_addr + i, *rb, *(buffer + i));
+            DEBUG_VERBOSE("Flash write success at addr 0x%08X, readback 0x%02X, expect 0x%02X\r\n", old_addr + i, rb, *(buffer + i));
         }
     }
-    vPortFree (rb);
     if (found_error == false)
     {
         DEBUG_VERBOSE("Page write success\r\n");
@@ -490,7 +489,9 @@ void app_spi_flash_read_bytes(app_flash_drv_t *flash_drv, uint32_t addr, uint8_t
     }
     while (1)
     {
-        if (flash_drv->info.device == APP_SPI_FLASH_FL256S || flash_drv->info.device == APP_SPI_FLASH_GD256 || flash_drv->info.device == APP_SPI_FLASH_W25Q256JV)
+        if (flash_drv->info.device == APP_SPI_FLASH_FL256S
+			|| flash_drv->info.device == APP_SPI_FLASH_GD256
+			|| flash_drv->info.device == APP_SPI_FLASH_W25Q256JV)
         {
             /* Send read cmd */
             cmd_buffer[index++] = READ_DATA_CMD4;
@@ -547,18 +548,17 @@ void app_spi_flash_erase_sector_4k(app_flash_drv_t *flash_drv, uint32_t sector_c
         return;
     }
 
-    DEBUG_INFO("Erase sector %u\r\n", sector_count);
+    DEBUG_INFO("Erase sector %u, at addr 0x%08X\r\n", sector_count, sector_count*4096);
     uint32_t addr = 0;
     // uint32_t old_addr = 0;
     addr = sector_count * APP_SPI_FLASH_SECTOR_SIZE; // Sector 4KB
 //    old_addr = addr;
 
     flash_write_control(flash_drv, 1);
-    flash_drv->callback.delay_ms(flash_drv, 5);
+//    flash_drv->callback.delay_ms(flash_drv, 5);
     uint8_t cmd_buffer[32];
     uint32_t cmd_count = 0;
 
-    flash_drv->callback.spi_cs(flash_drv->spi, 0);
     if (flash_drv->info.device == APP_SPI_FLASH_FL256S || flash_drv->info.device == APP_SPI_FLASH_GD256 || flash_drv->info.device == APP_SPI_FLASH_W25Q256JV)
     {
         /* Gui lenh */
@@ -577,10 +577,14 @@ void app_spi_flash_erase_sector_4k(app_flash_drv_t *flash_drv, uint32_t sector_c
     cmd_buffer[cmd_count++] = (addr >> 16) & 0xFF;
     cmd_buffer[cmd_count++] = (addr >> 8) & 0xFF;
     cmd_buffer[cmd_count++] = addr & 0xFF;
+
+    flash_drv->callback.spi_cs(flash_drv->spi, 0);
     flash_drv->callback.spi_tx_buffer(flash_drv->spi, cmd_buffer, cmd_count);
     flash_drv->callback.spi_cs(flash_drv->spi, 1);
+
     flash_drv->callback.delay_ms(flash_drv, SECTOR_ERASE_TIME_MS);
-    wait_write_in_process(flash_drv, 50);
+    wait_write_in_process(flash_drv, 300);
+
     if (app_spi_flash_is_sector_empty(flash_drv, sector_count))
     {
         DEBUG_INFO("Success\r\n", sector_count);
