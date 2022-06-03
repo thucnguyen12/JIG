@@ -220,6 +220,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM2) {
     HAL_IncTick();
+    toggle_100_ms++;
   }
   /* USER CODE BEGIN Callback 1 */
   if (toggle_100_ms == 100)
