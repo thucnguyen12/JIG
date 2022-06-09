@@ -608,10 +608,10 @@ void StartDefaultTask(void const * argument)
   {
   	  xTaskCreate(net_task, "net_task", 1024, NULL, 0, &m_task_handle_protocol);
   }
-  if (mTest_Handle_t == NULL)
-  {
-	  xTaskCreate (testing_task, "testing_task", 1024, NULL, 5, &mTest_Handle_t);
-  }
+//  if (mTest_Handle_t == NULL)
+//  {
+//	  xTaskCreate (testing_task, "testing_task", 1024, NULL, 5, &mTest_Handle_t);
+//  }
 
 #if LWIP_DHCP
 
@@ -621,10 +621,10 @@ void StartDefaultTask(void const * argument)
 	  DHCP_id = osThreadCreate (osThread(DHCP), &g_netif);
 #endif
 
-	  if (m_task_connect_handle == NULL)
-	  {
-		  xTaskCreate(flash_task, "flash_task", 1024, NULL, 3, &m_task_connect_handle);// pio =1
-	  }
+//	  if (m_task_connect_handle == NULL)
+//	  {
+//		  xTaskCreate(flash_task, "flash_task", 1024, NULL, 3, &m_task_connect_handle);// pio =1
+//	  }
 //	  lwrb_init (&m_ringbuffer_cli_rx, &m_cli_rx_buffer, sizeof (m_cli_rx_buffer));
   /* Infinite loop */
 	  HAL_RTC_GetTime (&hrtc, &sTimeToSend, RTC_FORMAT_BIN);
@@ -1099,10 +1099,12 @@ void net_task(void *argument)
 	jig_value_t* rev_jig_value;
 	app_http_config_t http_cfg;
 	app_http_config_t http_cfg_file;
+	app_http_config_t http_cfg_get;
 	uint32_t len;
 	ETHERNET_STATE e_state = NOT_CONNECTED;
 	char file_name [64];
 	sent_an_offline_file = xSemaphoreCreateBinary ();
+	initialize_stnp();
 	for (;;)
 	{
 		switch (e_state)
@@ -1111,7 +1113,7 @@ void net_task(void *argument)
 			if (m_ip_assigned) e_state = CONNECT;
 			break;
 		case CONNECT:
-			initialize_stnp();
+
 			if (check_file ("offline_test") == 1)
 			{
 				fre = create_a_dir ("offline_test");
@@ -1135,7 +1137,7 @@ void net_task(void *argument)
 			uint8_t last_month_read = day_in_month[last_month + 1];
 //			sprintf (file_name, "offline_test/test%d-%d-%d", sDateWriteFile.Date, sDateWriteFile.Month, sDateWriteFile.Year);
 			//scan file sequence
-			for (uint8_t i = 1; i < last_month_read; i++)
+			for (uint8_t i = 1; i <= last_month_read; i++)
 			{
 				sprintf (file_name, "0:/offline_test/test%d-%d-%d", i, last_month, year);
 				if(!check_file (file_name))
@@ -1219,6 +1221,33 @@ void net_task(void *argument)
 			{
 				e_state = NOT_CONNECTED;
 				m_ip_assigned = false;
+			}
+			{
+				uint8_t get_data [128];
+				RTC_TimeTypeDef TimeNow;
+				HAL_RTC_GetTime (&hrtc, &TimeNow, RTC_FORMAT_BIN);
+				static bool a = true;
+				if (a )
+				{
+					sprintf(http_cfg_get.url, "%s", "dev-api.basato.vn");
+					http_cfg_get.port = 80;
+					sprintf(http_cfg.file, "%s", "/fact/api/firesafe/get-timestamp");
+					http_cfg_get.on_event_cb = (void*)0;
+					http_cfg_get.method = APP_HTTP_GET;
+					app_http_start(&http_cfg_get, 0);
+					a = false;
+					DEBUG_INFO ("NOW NEED SYNC TIME AGAIN\r\n");
+				}
+//				slastTimeSync = TimeNow;
+//				if (xSemaphoreTake (sent_an_offline_file, 15000) == pdTRUE)
+//				{
+////					DEBUG_INFO("Delete file %s\r\n", file_name);
+////					delete_a_file (file_name);
+//////						}
+//				}
+//				http_get_body (get_data);
+//				DEBUG_INFO ("data get now: %s\r\n", get_data);
+
 			}
 //			if (send_offline_file)
 //			{

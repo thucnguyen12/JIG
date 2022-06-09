@@ -73,6 +73,7 @@ bool app_http_start(app_http_config_t * config, int pos_len);
  * @retval      TRUE http is idle
  *              FALSE other http task is running
  */
+void http_get_body (uint8_t * data);
 bool app_http_is_idle(void);
 void trans_content_to_body (uint8_t * databuff, uint16_t len);
 void trans_file_name_to_make_body (const char * file_name);

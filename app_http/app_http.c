@@ -28,6 +28,7 @@ static uint8_t post_body[1024];
 static uint16_t body_len;
 static char name[64];
 static uint8_t *data_carry;
+static uint8_t *data_rev;
 app_http_config_t *app_http_get_config(void)
 {
     return &m_http_cfg;
@@ -60,7 +61,8 @@ static void httpc_result_callback(void *arg, httpc_result_t httpc_result, u32_t 
 //    audio_queue.data = NULL;
 //    audio_queue.size = 0;
 //    sys_send_audio_queue(audio_queue, 2000);
-    vPortFree (data_carry);
+//    vPortFree (data_carry);
+
     switch (httpc_result)
     {
         case HTTPC_RESULT_OK: /** File successfully received */
@@ -256,10 +258,20 @@ err_t httpc_headers_done_callback(httpc_state_t *connection, void *arg, struct p
  * @param pointer to incoming pbuf
  * @param state of incoming process
  */
+void http_get_body (uint8_t * data)
+{
+	for (uint8_t i = 0; i < m_total_bytes_recv; i++)
+	{
+		data [i] = data_rev [i];
+	}
+}
+
 uint32_t last_tick = 0;
+
 static err_t httpc_file_recv_callback(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
 {
     // DEBUG_INFO("lwip http event cb\r\n");
+	data_rev = (uint8_t *) pvPortMalloc(128* sizeof (uint8_t));
     if (p)
     {
         struct pbuf *q;
@@ -270,7 +282,11 @@ static err_t httpc_file_recv_callback(void *arg, struct tcp_pcb *tpcb, struct pb
 //            uint32_t write_size = q->len;
 //            
             m_total_bytes_recv += q->len;
-
+//            memcpy(data_rev, q->payload, q->len);
+            data_rev = q->payload;
+//            data_rev += q->len;
+            DEBUG_INFO("HTTP data %s\r\n", q->payload);
+            DEBUG_INFO("HTTP data %s\r\n", data_rev);
 //            app_http_data_t data;
 //            data.length = write_size;
 //            data.data = payload;

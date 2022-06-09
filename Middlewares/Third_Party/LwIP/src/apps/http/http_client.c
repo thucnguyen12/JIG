@@ -57,7 +57,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include "app_debug.h"
 #if LWIP_TCP && LWIP_CALLBACK_API
 
 /**
@@ -547,6 +547,7 @@ httpc_init_connection_common(httpc_state_t **connection, const httpc_connection_
 
   /* get request len */
   req_len = httpc_create_request_string(settings, server_name, server_port, uri, use_host, NULL, 0);
+
   if ((req_len < 0) || (req_len > 0xFFFF)) {
     return ERR_VAL;
   }
@@ -602,6 +603,7 @@ httpc_init_connection_common(httpc_state_t **connection, const httpc_connection_
   /* set up request buffer */
   req_len2 = httpc_create_request_string(settings, server_name, server_port, uri, use_host,
     (char *)req->request->payload, req_len + 1);
+  DEBUG_INFO ("%s\r\n",req->request->payload);
   if (req_len2 != req_len) {
     httpc_free_state(req);
     return ERR_VAL;
