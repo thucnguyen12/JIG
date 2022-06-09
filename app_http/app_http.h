@@ -5,6 +5,10 @@
 #include <stdbool.h>
 
 #define APP_HTTP_MAX_URL_SIZE 256
+#define APP_HTTP_GET 0
+#define APP_HTTP_POST 1
+#define TRANS_FILE 1
+#define TRANS_STRING 0
 
 typedef struct
 {
@@ -31,6 +35,8 @@ typedef struct
     char url[APP_HTTP_MAX_URL_SIZE];
     char file[APP_HTTP_MAX_URL_SIZE];
     uint16_t port;
+    uint8_t method;
+    uint8_t transfile;
 } app_http_config_t;
 
 
@@ -60,14 +66,17 @@ void app_http_cleanup(void);
  * @retval      TRUE : Operation success
  *              FALSE : Operation failed
  */
-bool app_http_start(app_http_config_t * config);
+bool app_http_start(app_http_config_t * config, int pos_len);
 
 /**
  * @brief       Check http state 
  * @retval      TRUE http is idle
  *              FALSE other http task is running
  */
+void http_get_body (uint8_t * data);
 bool app_http_is_idle(void);
-
+void trans_content_to_body (uint8_t * databuff, uint16_t len);
+void trans_file_name_to_make_body (const char * file_name);
 #endif /* APP_HTTP_H */
+
 

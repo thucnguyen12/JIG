@@ -35,7 +35,8 @@ typedef struct
 typedef struct {
     partition_attr_t boot;
     partition_attr_t part;
-    partition_attr_t app;
+    partition_attr_t ota;
+    partition_attr_t firm;
 } example_binaries_t;
 
 void get_example_binaries(void *config, target_chip_t target, example_binaries_t *binaries);

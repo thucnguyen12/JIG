@@ -49,7 +49,9 @@
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-
+void rs232_rx_callback (void);
+void rs485_rxcallback (void);
+void tusb_read_callback (void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -60,6 +62,7 @@
 /* External variables --------------------------------------------------------*/
 extern ETH_HandleTypeDef heth;
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
+extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_spi3_rx;
 extern DMA_HandleTypeDef hdma_spi3_tx;
 extern SPI_HandleTypeDef hspi3;
@@ -182,61 +185,33 @@ void DMA1_Stream0_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles DMA1 stream1 global interrupt.
-  */
-void DMA1_Stream1_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream1_IRQn 0 */
-	if (LL_DMA_IsActiveFlag_HT1(DMA1))
-	    {
-	        LL_DMA_ClearFlag_HT1(DMA1);
-			usart3_rx_complete_callback(true);
-	    }
-		if (LL_DMA_IsActiveFlag_TC1(DMA1))
-		{
-			LL_DMA_ClearFlag_TC1(DMA1);
-			/* Call function Reception complete Callback */
-			usart3_rx_complete_callback(true);
-	        usart3_start_dma_rx();
-		}
-		else if (LL_DMA_IsActiveFlag_TE1(DMA1))
-		{
-			/* Call Error function */
-	        DEBUG_ISR("USART3 Error\r\n");
-			usart3_rx_complete_callback(false);
-		}
-  /* USER CODE END DMA1_Stream1_IRQn 0 */
-
-  /* USER CODE BEGIN DMA1_Stream1_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream1_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA1 stream3 global interrupt.
-  */
-void DMA1_Stream3_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream3_IRQn 0 */
-	if(LL_DMA_IsActiveFlag_TC3(DMA1))
-	{
-		LL_DMA_ClearFlag_TC3(DMA1);
-		usart3_tx_cplt_cb();
-	}
-  /* USER CODE END DMA1_Stream3_IRQn 0 */
-
-  /* USER CODE BEGIN DMA1_Stream3_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream3_IRQn 1 */
-}
-
-/**
   * @brief This function handles DMA1 stream5 global interrupt.
   */
 void DMA1_Stream5_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Stream5_IRQn 0 */
-
+	if (LL_DMA_IsActiveFlag_HT5(DMA1))
+	{
+//        DEBUG_PRINTF("USART1 HT\r\n");
+		LL_DMA_ClearFlag_HT5(DMA1);
+		// DEBUG_ISR("HT RX cplt\r\n");
+		usart2_rx_complete_callback(true);
+	}
+	if (LL_DMA_IsActiveFlag_TC5(DMA1))
+	{
+		LL_DMA_ClearFlag_TC5(DMA1);
+		/* Call function Reception complete Callback */
+		// DEBUG_ISR("TC RX cplt\r\n");
+		usart2_rx_complete_callback(true);
+		usart2_start_dma_rx();
+	}
+	else if (LL_DMA_IsActiveFlag_TE5(DMA1))
+	{
+		/* Call Error function */
+		DEBUG_ISR("USART2 Error\r\n");
+		usart2_rx_complete_callback(false);
+		// USART_TransferError_Callback();
+	}
   /* USER CODE END DMA1_Stream5_IRQn 0 */
 
   /* USER CODE BEGIN DMA1_Stream5_IRQn 1 */
@@ -250,12 +225,31 @@ void DMA1_Stream5_IRQHandler(void)
 void DMA1_Stream6_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Stream6_IRQn 0 */
-
+	if(LL_DMA_IsActiveFlag_TC6(DMA1))
+	{
+		LL_DMA_ClearFlag_TC6(DMA1);
+		usart2_tx_cplt_cb();
+	}
   /* USER CODE END DMA1_Stream6_IRQn 0 */
 
   /* USER CODE BEGIN DMA1_Stream6_IRQn 1 */
 
   /* USER CODE END DMA1_Stream6_IRQn 1 */
+}
+
+/**
+  * @brief This function handles EXTI line[9:5] interrupts.
+  */
+void EXTI9_5_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI9_5_IRQn 0 */
+
+  /* USER CODE END EXTI9_5_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(RELAY_NO_Pin);
+  HAL_GPIO_EXTI_IRQHandler(RELAY_NC_Pin);
+  /* USER CODE BEGIN EXTI9_5_IRQn 1 */
+
+  /* USER CODE END EXTI9_5_IRQn 1 */
 }
 
 /**
@@ -278,7 +272,33 @@ void TIM2_IRQHandler(void)
 void USART2_IRQHandler(void)
 {
   /* USER CODE BEGIN USART2_IRQn 0 */
+	 if (LL_USART_IsEnabledIT_IDLE(USART2) && LL_USART_IsActiveFlag_IDLE(USART2))
+	    {
+	        // DEBUG_ISR("IDLE\r\n");
+	        LL_USART_ClearFlag_IDLE(USART2);        /* Clear IDLE line flag */
+	        usart2_rx_complete_callback(true);
 
+	    }
+
+	    if (LL_USART_IsActiveFlag_ORE(USART2))
+	    {
+	        DEBUG_ISR("USART2 Overrun\r\n");
+	        uint32_t tmp = USART2->DR;
+	        (void)tmp;
+	        LL_USART_ClearFlag_ORE(USART2);
+	    }
+
+	    if (LL_USART_IsActiveFlag_FE(USART2))
+	    {
+	        DEBUG_ISR("USART2 Frame error\r\n");
+	        LL_USART_ClearFlag_FE(USART2);
+	    }
+
+	    if (LL_USART_IsActiveFlag_NE(USART2))
+	    {
+	        DEBUG_ISR("Noise error\r\n");
+	        LL_USART_ClearFlag_NE(USART2);
+	    }
   /* USER CODE END USART2_IRQn 0 */
   /* USER CODE BEGIN USART2_IRQn 1 */
 
@@ -291,7 +311,10 @@ void USART2_IRQHandler(void)
 void USART3_IRQHandler(void)
 {
   /* USER CODE BEGIN USART3_IRQn 0 */
-
+	if((USART3 ->SR & (1 << 5)) && (USART3 ->CR1 & 1 << 5) ) //if rxne enable and be set
+	{
+		rs232_rx_callback();
+	}
   /* USER CODE END USART3_IRQn 0 */
   /* USER CODE BEGIN USART3_IRQn 1 */
 
@@ -332,11 +355,28 @@ void SPI3_IRQHandler(void)
 void UART5_IRQHandler(void)
 {
   /* USER CODE BEGIN UART5_IRQn 0 */
-
+	if((UART5 ->SR & (1 << 5)) && (UART5 ->CR1 & 1 << 5) ) //if rxne enable and be set
+	{
+		rs485_rxcallback ();
+	}
   /* USER CODE END UART5_IRQn 0 */
   /* USER CODE BEGIN UART5_IRQn 1 */
 
   /* USER CODE END UART5_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMA2 Stream0 global interrupt.
+  */
+void DMA2_Stream0_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA2_Stream0_IRQn 0 */
+
+  /* USER CODE END DMA2_Stream0_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_adc1);
+  /* USER CODE BEGIN DMA2_Stream0_IRQn 1 */
+
+  /* USER CODE END DMA2_Stream0_IRQn 1 */
 }
 
 /**
@@ -359,6 +399,7 @@ void ETH_IRQHandler(void)
 void OTG_FS_IRQHandler(void)
 {
   /* USER CODE BEGIN OTG_FS_IRQn 0 */
+
 	tud_int_handler(BOARD_DEVICE_RHPORT_NUM);
 	return;
   /* USER CODE END OTG_FS_IRQn 0 */

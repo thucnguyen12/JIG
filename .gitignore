@@ -7,7 +7,6 @@
 *.md
 *.html
 *.txt
-*.ld
 *.rb
 *.rake
 *.yml

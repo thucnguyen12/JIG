@@ -22,7 +22,9 @@
 #include "adc.h"
 #include "dma.h"
 #include "fatfs.h"
+#include "iwdg.h"
 #include "lwip.h"
+#include "rtc.h"
 #include "spi.h"
 #include "usart.h"
 #include "usb_device.h"
@@ -51,7 +53,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+	uint16_t toggle_100_ms = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,14 +105,18 @@ int main(void)
   MX_SPI3_Init();
   MX_UART5_Init();
   MX_USART2_UART_Init();
-  MX_USART3_UART_Init();
   MX_ADC1_Init();
   MX_FATFS_Init();
+  MX_USART3_UART_Init();
+  MX_RTC_Init();
+//  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
+
   m_lock_debug = xSemaphoreCreateMutex();
   xSemaphoreGive(m_lock_debug);
   app_debug_init(sys_get_ms, lock_debug);
-	app_debug_register_callback_print(rtt_tx);
+  app_debug_register_callback_print(rtt_tx);
+
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
@@ -139,12 +145,14 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 8;
@@ -166,6 +174,12 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+  PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
@@ -206,9 +220,19 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM2) {
     HAL_IncTick();
+    toggle_100_ms++;
   }
   /* USER CODE BEGIN Callback 1 */
-
+  if (toggle_100_ms == 100)
+  {
+	  toggle_100_ms = 0;
+	  HAL_GPIO_TogglePin (ISO_IN1_GPIO_Port, ISO_IN1_Pin);
+	  HAL_GPIO_TogglePin (ISO_IN2_GPIO_Port, ISO_IN2_Pin);
+	  HAL_GPIO_TogglePin (ISO_IN3_GPIO_Port, ISO_IN3_Pin);
+	  HAL_GPIO_TogglePin (ISO_IN4_GPIO_Port, ISO_IN4_Pin);
+	  HAL_GPIO_TogglePin (ALARM_IN_GPIO_Port, ALARM_IN_Pin);
+	  HAL_GPIO_TogglePin (FAULT_IN_GPIO_Port, FAULT_IN_Pin);
+  }
   /* USER CODE END Callback 1 */
 }
 

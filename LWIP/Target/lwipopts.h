@@ -23,7 +23,7 @@
 #define __LWIPOPTS__H__
 
 #include "main.h"
-
+#include "app_debug.h"
 /*-----------------------------------------------------------------------------*/
 /* Current version of LwIP supported by CubeMx: 2.0.3 -*/
 /*-----------------------------------------------------------------------------*/
@@ -120,6 +120,13 @@
 /*-----------------------------------------------------------------------------*/
 /* USER CODE BEGIN 1 */
 
+#define LWIP_PLATFORM_DIAG(x) do {DEBUG_RAW x;} while(0)
+#define HTTPC_DEBUG                 LWIP_DEBUG
+#define LWIP_DEBUG LWIP_DBG_ON
+#define SNTP_STARTUP_DELAY 0
+#define SNTP_DEBUG LWIP_DBG_OFF
+extern void lwip_sntp_recv_cb (uint32_t time);
+#define SNTP_SET_SYSTEM_TIME lwip_sntp_recv_cb
 /* USER CODE END 1 */
 
 #ifdef __cplusplus

@@ -42,6 +42,11 @@ void MX_FATFS_Init(void);
 uint32_t fatfs_read_file(const char *file, uint8_t *data, uint32_t size);
 int32_t fatfs_read_file_at_pos(const char *file, uint8_t *data, uint32_t size, uint32_t p);
 int32_t fatfs_get_file_size(const char *file);
+uint32_t fatfs_write_to_a_file_at_pos (const char* file, char* buff, uint32_t size, uint32_t pos);
+uint32_t fatfs_write_json_to_a_file_at_pos (const char* file, char* buff, uint32_t size, uint32_t pos);
+void delete_a_file (const char * file);
+uint8_t check_file (const char* file);
+FRESULT create_a_dir (const char * path);
 /* USER CODE END Prototypes */
 #ifdef __cplusplus
 }

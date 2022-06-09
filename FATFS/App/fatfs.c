@@ -103,24 +103,33 @@ int32_t fatfs_read_file_at_pos(const char *file, uint8_t *data, uint32_t size, u
         f_close(&USERFile);
         goto end;
     }
-
+    DEBUG_VERBOSE("File %s seek set\r\n", file);
     fresult = f_lseek(&USERFile, pos);
     if (FR_OK != fresult)
     {
-        DEBUG_ERROR("[1] Seek file %s failed\r\n", file);
+        DEBUG_ERROR("[1] Seek file %s failed, %d\r\n", file, fresult);
+        HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
         f_close(&USERFile);
         goto end;
     }
-
+    DEBUG_VERBOSE("File %s seek pos\r\n", file);
     fresult = f_read(&USERFile, data, size, &byte_read);
     if (FR_OK != fresult)
     {
+    	HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_RESET);
+    	HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
         DEBUG_ERROR("Read file %s failed %d\r\n", file, fresult);
         f_close(&USERFile);
         goto end;
     }
+    DEBUG_VERBOSE("File %s read\r\n", file);
+    fresult = f_close(&USERFile);
+    if (FR_OK != fresult)
+       {
+     	 DEBUG_INFO ("CLOSE FILE ERROR: %u", fresult);
+       }
 
-    f_close(&USERFile);
     DEBUG_VERBOSE("File %s closed\r\n", file);
 end:
     return byte_read;
@@ -136,6 +145,7 @@ int32_t fatfs_get_file_size(const char *file)
     fresult = f_open(&USERFile, file, FA_READ);
     if (fresult != FR_OK)
     {
+    	if (fresult == 4) size = 0;
         DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
         goto end;
     }
@@ -154,4 +164,199 @@ int32_t fatfs_get_file_size(const char *file)
 end:
     return size;
 }
+
+uint32_t fatfs_write_to_a_file_at_pos (const char* file, char* buff, uint32_t size, uint32_t pos)
+{
+	UINT byte_write = 0;
+	// step1 : check co file hay ko
+	// neu co thi xoa file
+	// ghi vao file
+	fresult = f_open(&USERFile, file, FA_CREATE_ALWAYS);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
+		goto end;
+	}
+	f_close(&USERFile);
+	fresult = f_open(&USERFile, file, 	FA_OPEN_APPEND | FA_WRITE);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
+		goto end;
+	}
+
+	fresult = f_lseek(&USERFile, (FSIZE_t)pos);
+	if (FR_OK != fresult)
+	{
+		DEBUG_ERROR(" Seek file %s at 0 failed\r\n", file);
+		f_close(&USERFile);
+		goto end;
+	}
+
+	fresult = f_write (&USERFile, buff, size, &byte_write);
+	if (fresult != FR_OK)
+	{
+		DEBUG_INFO ("ERROR %d", fresult);
+		DEBUG_ERROR ("WRITE FILE %s FAIL", file);
+		f_close(&USERFile);
+		goto end;
+
+	}
+	f_close(&USERFile);
+	end:
+	    return byte_write;
+}
+
+uint32_t fatfs_write_json_to_a_file_at_pos (const char* file, char* buff, uint32_t size, uint32_t pos)
+{
+	UINT byte_write = 0;
+	const char * next_symbol = ",";
+	const char * end_symbol = "]";
+	// step1 : check co file hay ko
+	// neu co thi xoa file
+	// ghi vao file
+	fresult = f_open(&USERFile, file, FA_CREATE_ALWAYS);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
+		goto end;
+	}
+	f_close(&USERFile);
+	fresult = f_open(&USERFile, file, 	FA_OPEN_APPEND | FA_WRITE);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR("Open file %s failed %d\r\n", file, fresult);
+		goto end;
+	}
+	if (pos == 0)
+	{
+		fresult = f_lseek(&USERFile, (FSIZE_t)pos);
+		if (FR_OK != fresult)
+		{
+			DEBUG_ERROR(" Seek file %s at 0 failed\r\n", file);
+			f_close(&USERFile);
+			goto end;
+		}
+	}
+	else
+	{
+		fresult = f_lseek(&USERFile, (FSIZE_t) pos - 1);
+		if (FR_OK != fresult)
+		{
+			DEBUG_ERROR(" Seek file %s at 0 failed\r\n", file);
+			f_close(&USERFile);
+			goto end;
+		}
+	}
+	if (pos != 0)
+	{
+		fresult = f_write (&USERFile, next_symbol, 1, &byte_write);
+			if (fresult != FR_OK)
+			{
+				DEBUG_INFO ("ERROR %d", fresult);
+				DEBUG_ERROR ("WRITE FILE %s FAIL", file);
+				f_close(&USERFile);
+				goto end;
+
+			}
+	}
+	fresult = f_write (&USERFile, buff, size, &byte_write);
+	if (fresult != FR_OK)
+	{
+		DEBUG_INFO ("ERROR %d", fresult);
+		DEBUG_ERROR ("WRITE FILE %s FAIL", file);
+		f_close(&USERFile);
+		goto end;
+
+	}
+	if (pos)
+	{
+		fresult = f_write (&USERFile, end_symbol, 1, &byte_write);
+		if (fresult != FR_OK)
+		{
+			DEBUG_INFO ("ERROR %d", fresult);
+			DEBUG_ERROR ("WRITE FILE %s FAIL", file);
+			f_close(&USERFile);
+			goto end;
+
+		}
+	}
+	f_close(&USERFile);
+	end:
+	    return byte_write;
+}
+uint8_t check_file (const char* file)
+{
+	FRESULT fr;
+	FILINFO fno;
+	fr = f_stat (file, &fno);
+	switch (fr)
+	{
+	case FR_OK:
+		DEBUG_INFO ("THERE IS FILE %s\r\n", file);
+		return 0;
+
+	case FR_NO_FILE:
+//		DEBUG_INFO ("NO FILE %s\r\n", file);
+		return 1;
+	default:
+		DEBUG_ERROR ("AN ERROR OCCURED\r\n");
+		return 2;
+	}
+}
+void delete_a_file (const char * file)
+{
+	fresult = f_unlink (file);
+}
+//FILINFO scan_files (char* pat)
+//{
+//    DIR dir;
+//    UINT i;
+//    FILINFO fno;
+//    static char buffer[128];
+//    char path[20];
+//    sprintf (path, "%s",pat);
+//
+//    fresult = f_opendir(&dir, path);                       /* Open the directory */
+//    if (fresult == FR_OK)
+//    {
+//        for (;;)
+//        {
+//            fresult = f_readdir(&dir, &fno);                   /* Read a directory item */
+//            if (fresult != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+//            if (fno.fattrib & AM_DIR)     /* It is a directory */
+//            {
+//
+//            	if (!(strcmp ("SYSTEM~1", fno.fname))) continue;
+//            	DEBUG_INFO ("FIND A DIR \r\n");
+////            	sprintf (buffer, "Dir: %s\r\n", fno.fname);
+////            	send_uart(buffer);
+////                i = strlen(path);
+////                sprintf(&path[i], "/%s", fno.fname);
+//                fresult = scan_files(path);                     /* Enter the directory */
+//                if (fresult != FR_OK) break;
+//                path[i] = 0;
+//            }
+//            else
+//            {                                       /* It is a file. */
+//               sprintf(buffer,"File: %s/%s\n", path, fno.fname);
+////               send_uart(buffer);
+//               DEBUG_INFO ("%s\r\n", buffer);
+//
+//            }
+//        }
+//        f_closedir(&dir);
+//    }
+//    return fresult;
+//}
+FRESULT create_a_dir (const char * path)
+{
+	fresult = f_mkdir (path);
+	if (fresult != FR_OK)
+	{
+		DEBUG_ERROR ("ERROR IN CREAT DIR\r\n");
+	}
+	return fresult;
+}
+
 /* USER CODE END Application */
